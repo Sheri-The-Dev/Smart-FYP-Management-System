@@ -1,7 +1,16 @@
 import { useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
-import { Users, Shield, BookOpen, GraduationCap } from 'lucide-react';
+import { 
+  Users, 
+  Shield, 
+  BookOpen, 
+  GraduationCap,
+  Lock,
+  User as UserIcon,
+  FolderOpen,
+  Search
+} from 'lucide-react';
 import { useAuth } from '../hooks/useAuth';
 import Header from '../components/layout/Header';
 
@@ -19,26 +28,39 @@ const Dashboard = () => {
   const getRoleIcon = () => {
     switch (user?.role) {
       case 'Student':
-        return <GraduationCap className="w-16 h-16 text-[#193869]" />;
+        return <GraduationCap className="w-16 h-16 text-white" />;
       case 'Teacher':
-        return <BookOpen className="w-16 h-16 text-[#193869]" />;
+        return <BookOpen className="w-16 h-16 text-white" />;
       case 'Committee':
-        return <Shield className="w-16 h-16 text-[#193869]" />;
+        return <Shield className="w-16 h-16 text-white" />;
       default:
-        return <Users className="w-16 h-16 text-[#193869]" />;
+        return <Users className="w-16 h-16 text-white" />;
     }
   };
 
   const getRoleMessage = () => {
     switch (user?.role) {
       case 'Student':
-        return 'Access your courses, assignments, and grades';
+        return 'Explore archived projects and manage your profile';
       case 'Teacher':
-        return 'Manage your classes, students, and curriculum';
+        return 'Search projects and manage your information';
       case 'Committee':
-        return 'Review and manage committee tasks';
+        return 'Access project archive and manage your profile';
       default:
         return 'Welcome to your dashboard';
+    }
+  };
+
+  const getRoleDescription = () => {
+    switch (user?.role) {
+      case 'Student':
+        return 'Browse through completed Final Year Projects to get inspiration for your own work';
+      case 'Teacher':
+        return 'Search and review archived FYP projects for reference and guidance';
+      case 'Committee':
+        return 'Access the complete archive of Final Year Projects for review';
+      default:
+        return 'Access your personalized dashboard';
     }
   };
 
@@ -47,6 +69,7 @@ const Dashboard = () => {
       <Header />
       
       <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
+        {/* Welcome Section */}
         <motion.div
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
@@ -67,85 +90,127 @@ const Dashboard = () => {
           <p className="text-xl text-gray-600">{getRoleMessage()}</p>
         </motion.div>
 
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-          {/* Quick Stats Cards */}
-          <motion.div
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: 0.3 }}
-            className="bg-white rounded-xl shadow-md p-6 border-l-4 border-[#193869]"
+        {/* Quick Actions Grid */}
+        <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.4 }}
+          className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 mb-8"
+        >
+          {/* PROJECT ARCHIVE - Available to ALL users */}
+          <motion.button
+            whileHover={{ scale: 1.02, y: -5 }}
+            whileTap={{ scale: 0.98 }}
+            onClick={() => navigate('/projects')}
+            className="bg-gradient-to-br from-[#193869] to-[#234e92] hover:from-[#234e92] hover:to-[#193869] rounded-xl shadow-lg p-8 text-left transition-all duration-300"
           >
-            <h3 className="text-lg font-semibold text-gray-800 mb-2">Account Status</h3>
-            <p className="text-3xl font-bold text-green-600">Active</p>
-            <p className="text-sm text-gray-500 mt-2">Your account is in good standing</p>
-          </motion.div>
+            <div className="flex items-center gap-4 mb-4">
+              <div className="w-14 h-14 bg-white/20 backdrop-blur-sm rounded-lg flex items-center justify-center">
+                <FolderOpen className="w-8 h-8 text-white" />
+              </div>
+              <div>
+                <h3 className="text-xl font-bold text-white">Project Archive</h3>
+                <p className="text-blue-100 text-sm">Search & Explore</p>
+              </div>
+            </div>
+            <p className="text-white/90 text-sm leading-relaxed">
+              Browse completed Final Year Projects by keywords, supervisor, year, department, and technology
+            </p>
+            <div className="mt-4 flex items-center text-white/80 text-sm">
+              <Search className="w-4 h-4 mr-2" />
+              <span>Advanced search available</span>
+            </div>
+          </motion.button>
 
-          <motion.div
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: 0.4 }}
-            className="bg-white rounded-xl shadow-md p-6 border-l-4 border-[#d29538]"
+          {/* VIEW PROFILE */}
+          <motion.button
+            whileHover={{ scale: 1.02, y: -5 }}
+            whileTap={{ scale: 0.98 }}
+            onClick={() => navigate('/profile')}
+            className="bg-white hover:bg-gray-50 rounded-xl shadow-md p-8 text-left transition-all duration-300 border-2 border-transparent hover:border-[#193869]"
           >
-            <h3 className="text-lg font-semibold text-gray-800 mb-2">Role</h3>
-            <p className="text-3xl font-bold text-[#193869]">{user?.role}</p>
-            <p className="text-sm text-gray-500 mt-2">Current access level</p>
-          </motion.div>
+            <div className="flex items-center gap-4 mb-4">
+              <div className="w-14 h-14 bg-[#d29538] rounded-lg flex items-center justify-center">
+                <UserIcon className="w-8 h-8 text-white" />
+              </div>
+              <div>
+                <h3 className="text-xl font-bold text-gray-800">My Profile</h3>
+                <p className="text-gray-500 text-sm">Account Details</p>
+              </div>
+            </div>
+            <p className="text-gray-600 text-sm leading-relaxed">
+              View and update your personal information, profile picture, and account settings
+            </p>
+          </motion.button>
 
-          <motion.div
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: 0.5 }}
-            className="bg-white rounded-xl shadow-md p-6 border-l-4 border-[#234e92]"
+          {/* CHANGE PASSWORD */}
+          <motion.button
+            whileHover={{ scale: 1.02, y: -5 }}
+            whileTap={{ scale: 0.98 }}
+            onClick={() => navigate('/change-password')}
+            className="bg-white hover:bg-gray-50 rounded-xl shadow-md p-8 text-left transition-all duration-300 border-2 border-transparent hover:border-[#193869]"
           >
-            <h3 className="text-lg font-semibold text-gray-800 mb-2">Last Login</h3>
-            <p className="text-lg font-bold text-gray-700">Just now</p>
-            <p className="text-sm text-gray-500 mt-2">Session active</p>
-          </motion.div>
-        </div>
+            <div className="flex items-center gap-4 mb-4">
+              <div className="w-14 h-14 bg-gradient-to-br from-red-500 to-red-600 rounded-lg flex items-center justify-center">
+                <Lock className="w-8 h-8 text-white" />
+              </div>
+              <div>
+                <h3 className="text-xl font-bold text-gray-800">Security</h3>
+                <p className="text-gray-500 text-sm">Change Password</p>
+              </div>
+            </div>
+            <p className="text-gray-600 text-sm leading-relaxed">
+              Update your account password to keep your account secure
+            </p>
+          </motion.button>
+        </motion.div>
 
-        {/* Account Information */}
+        {/* Role-Specific Information Card */}
         <motion.div
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ delay: 0.6 }}
-          className="mt-8 bg-white rounded-xl shadow-md p-6"
+          className="bg-gradient-to-br from-blue-50 to-indigo-50 rounded-xl shadow-md p-8 border border-blue-100"
         >
-          <h2 className="text-2xl font-bold text-gray-800 mb-6">Quick Actions</h2>
-          
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <button
-              onClick={() => navigate('/change-password')}
-              className="bg-white hover:bg-gray-50 rounded-xl shadow-md p-6 text-left transition-all duration-200 border-2 border-transparent hover:border-[#193869]"
-            >
-              <div className="flex items-center gap-4">
-                <div className="w-12 h-12 bg-[#193869] rounded-lg flex items-center justify-center">
-                  <Shield className="w-6 h-6 text-white" />
-                </div>
-                <div>
-                  <h3 className="text-lg font-semibold text-gray-800">Change Password</h3>
-                  <p className="text-sm text-gray-600">Update your account password</p>
-                </div>
+          <div className="flex items-start gap-4">
+            <div className="w-12 h-12 bg-gradient-to-br from-[#193869] to-[#234e92] rounded-lg flex items-center justify-center flex-shrink-0">
+              {user?.role === 'Student' && <GraduationCap className="w-6 h-6 text-white" />}
+              {user?.role === 'Teacher' && <BookOpen className="w-6 h-6 text-white" />}
+              {user?.role === 'Committee' && <Shield className="w-6 h-6 text-white" />}
+            </div>
+            <div className="flex-1">
+              <h2 className="text-2xl font-bold text-gray-800 mb-2">
+                {user?.role} Dashboard
+              </h2>
+              <p className="text-gray-700 mb-4">
+                {getRoleDescription()}
+              </p>
+              <div className="bg-white rounded-lg p-4 border border-blue-200">
+                <h3 className="font-semibold text-gray-800 mb-3">What you can do:</h3>
+                <ul className="space-y-2 text-sm text-gray-700">
+                  <li className="flex items-center gap-2">
+                    <div className="w-1.5 h-1.5 bg-[#193869] rounded-full"></div>
+                    <span>Search archived projects by keywords, supervisor, year, and more</span>
+                  </li>
+                  <li className="flex items-center gap-2">
+                    <div className="w-1.5 h-1.5 bg-[#193869] rounded-full"></div>
+                    <span>View complete project details including abstract and technology</span>
+                  </li>
+                  <li className="flex items-center gap-2">
+                    <div className="w-1.5 h-1.5 bg-[#193869] rounded-full"></div>
+                    <span>Use advanced filters with AND/OR operators</span>
+                  </li>
+                  <li className="flex items-center gap-2">
+                    <div className="w-1.5 h-1.5 bg-[#193869] rounded-full"></div>
+                    <span>Manage your profile and account settings</span>
+                  </li>
+                </ul>
               </div>
-            </button>
-
-            <button
-              onClick={() => navigate('/profile')}
-              className="bg-white hover:bg-gray-50 rounded-xl shadow-md p-6 text-left transition-all duration-200 border-2 border-transparent hover:border-[#193869]"
-            >
-              <div className="flex items-center gap-4">
-                <div className="w-12 h-12 bg-[#d29538] rounded-lg flex items-center justify-center">
-                  <Users className="w-6 h-6 text-white" />
-                </div>
-                <div>
-                  <h3 className="text-lg font-semibold text-gray-800">View Profile</h3>
-                  <p className="text-sm text-gray-600">See your account details</p>
-                </div>
-              </div>
-            </button>
+            </div>
           </div>
         </motion.div>
 
-        {/* Role-specific content placeholder */}
+        {/* Getting Started Section */}
         <motion.div
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
@@ -153,15 +218,26 @@ const Dashboard = () => {
           className="mt-8 bg-gradient-to-br from-[#193869] to-[#234e92] rounded-xl shadow-xl p-8 text-white"
         >
           <h2 className="text-2xl font-bold mb-4">Getting Started</h2>
-          <p className="text-blue-100 mb-4">
-            This is your personal dashboard. Here you can access all the features available to your role as a {user?.role}.
-          </p>
-          <ul className="list-disc list-inside space-y-2 text-blue-100">
-            <li>View and manage your account information</li>
-            <li>Change your password anytime</li>
-            <li>Access role-specific features</li>
-            <li>Stay updated with notifications</li>
-          </ul>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            <div>
+              <h3 className="text-lg font-semibold mb-2 text-blue-100">
+                📚 Explore Project Archive
+              </h3>
+              <p className="text-blue-100 text-sm leading-relaxed">
+                Click on "Project Archive" to search through hundreds of completed FYP projects. 
+                Use keywords, filters, and advanced search to find exactly what you're looking for.
+              </p>
+            </div>
+            <div>
+              <h3 className="text-lg font-semibold mb-2 text-blue-100">
+                👤 Manage Your Profile
+              </h3>
+              <p className="text-blue-100 text-sm leading-relaxed">
+                Keep your profile information up to date. Upload a profile picture, 
+                update your contact details, and manage your account security settings.
+              </p>
+            </div>
+          </div>
         </motion.div>
       </main>
     </div>

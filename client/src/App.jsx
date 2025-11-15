@@ -1,23 +1,25 @@
-import { Routes, Route, Navigate } from 'react-router-dom';
-import { useAuth } from './hooks/useAuth';
-import Loading from './components/common/Loading';
+import { Routes, Route, Navigate } from "react-router-dom";
+import { useAuth } from "./hooks/useAuth";
+import Loading from "./components/common/Loading";
 
 // Public Pages
-import Login from './pages/Login';
-import ForgotPassword from './pages/ForgotPassword';
-import ResetPassword from './pages/ResetPassword';
-import SecurityChallenge from './pages/SecurityChallenge';
+import Login from "./pages/Login";
+import ForgotPassword from "./pages/ForgotPassword";
+import ResetPassword from "./pages/ResetPassword";
+import SecurityChallenge from "./pages/SecurityChallenge";
 
 // Protected Pages
-import Dashboard from './pages/Dashboard';
-import ChangePassword from './pages/ChangePassword';
-import Profile from './pages/Profile'; // NEW IMPORT
+import Dashboard from "./pages/Dashboard";
+import ChangePassword from "./pages/ChangePassword";
+import Profile from "./pages/Profile"; // NEW IMPORT
 
 // Admin Pages
-import AdminDashboard from './pages/admin/AdminDashboard';
-import UsersManagement from './pages/admin/UsersManagement';
-import UserDetails from './pages/admin/UserDetails';
-import AuditLogsPage from './pages/admin/AuditLogsPage';
+import AdminDashboard from "./pages/admin/AdminDashboard";
+import UsersManagement from "./pages/admin/UsersManagement";
+import UserDetails from "./pages/admin/UserDetails";
+import AuditLogsPage from "./pages/admin/AuditLogsPage";
+import AdminProjectManagement from "./pages/admin/AdminProjectManagement";
+import ProjectArchive from "./pages/ProjectArchive";
 
 // Protected Route Component
 const ProtectedRoute = ({ children, requireAdmin = false }) => {
@@ -126,6 +128,14 @@ function App() {
         }
       />
       <Route
+        path="/admin/projects"
+        element={
+          <ProtectedRoute requireAdmin>
+            <AdminProjectManagement />
+          </ProtectedRoute>
+        }
+      />
+      <Route
         path="/admin/users/:id"
         element={
           <ProtectedRoute requireAdmin>
@@ -138,6 +148,15 @@ function App() {
         element={
           <ProtectedRoute requireAdmin>
             <AuditLogsPage />
+          </ProtectedRoute>
+        }
+      />
+
+      <Route
+        path="/projects"
+        element={
+          <ProtectedRoute>
+            <ProjectArchive />
           </ProtectedRoute>
         }
       />

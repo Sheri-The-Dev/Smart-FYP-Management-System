@@ -53,3 +53,16 @@ export const STORAGE_KEYS = {
   TOKEN: 'auth_token',
   USER: 'user_data'
 };
+
+// ADD THESE NEW CONSTANTS:
+export const AVAILABILITY_STATUS = {
+  AVAILABLE: 'Available',
+  BUSY: 'Busy',
+  UNAVAILABLE: 'Unavailable'
+};
+
+export const FILE_UPLOAD = {
+  MAX_SIZE: 5 * 1024 * 1024, // 5MB
+  ALLOWED_TYPES: ['image/jpeg', 'image/jpg', 'image/png', 'image/gif', 'image/webp'],
+  UPLOAD_URL: '/profile/picture'
+};

@@ -2,33 +2,24 @@ import { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { 
-  ArrowLeft, User, Mail, Shield, Calendar, Clock, 
-  Activity, Trash2, Edit, RefreshCw, Key 
+  ArrowLeft, User, Mail, Shield, Calendar, Phone, Building,
+  Edit, Trash2, RefreshCw, Lock, CheckCircle, XCircle,
+  BookOpen, Award, Clock
 } from 'lucide-react';
 import Header from '../../components/layout/Header';
-import Loading from '../../components/common/Loading';
 import Button from '../../components/common/Button';
-import Modal from '../../components/common/Modal';
+import Loading from '../../components/common/Loading';
+import UserActivityLog from '../../components/admin/UserActivityLog';
 import { useToast } from '../../components/common/Toast';
-import { 
-  getUserById, 
-  updateUser, 
-  deleteUser, 
-  adminRequestPasswordReset,
-  initiateSecurityChallenge 
-} from '../../services/adminService';
+import { getUserById, deleteUser, updateUser } from '../../services/adminService';
+import { getProfilePictureUrl } from '../../services/profileService';
 
 const UserDetails = () => {
   const { id } = useParams();
   const navigate = useNavigate();
   const toast = useToast();
-
   const [loading, setLoading] = useState(true);
-  const [user, setUser] = useState(null);
-  const [showDeleteModal, setShowDeleteModal] = useState(false);
-  const [showEditModal, setShowEditModal] = useState(false);
-  const [editFormData, setEditFormData] = useState({});
-  const [updating, setUpdating] = useState(false);
+  const [userData, setUserData] = useState(null);
 
   useEffect(() => {
     fetchUserDetails();
@@ -39,12 +30,7 @@ const UserDetails = () => {
     try {
       const response = await getUserById(id);
       if (response.success) {
-        setUser(response.data);
-        setEditFormData({
-          email: response.data.email,
-          role: response.data.role,
-          is_active: response.data.is_active
-        });
+        setUserData(response.data);
       }
     } catch (error) {
       toast.error('Failed to load user details');
@@ -54,47 +40,19 @@ const UserDetails = () => {
     }
   };
 
-  const handleUpdateUser = async () => {
-    setUpdating(true);
-    try {
-      await updateUser(id, editFormData);
-      toast.success('User updated successfully');
-      setShowEditModal(false);
-      fetchUserDetails();
-    } catch (error) {
-      toast.error(error.message || 'Failed to update user');
-    } finally {
-      setUpdating(false);
+  const handleDelete = async () => {
+    if (!window.confirm('Are you sure you want to delete this user? This action cannot be undone.')) {
+      return;
     }
-  };
 
-  const handleDeleteUser = async () => {
     try {
-      await deleteUser(id);
-      toast.success('User deleted successfully');
-      navigate('/admin/users');
-    } catch (error) {
-      toast.error(error.message || 'Failed to delete user');
-    }
-  };
-
-  const handlePasswordReset = async () => {
-    try {
-      await adminRequestPasswordReset(id);
-      toast.success('Password reset email sent');
-    } catch (error) {
-      toast.error(error.message || 'Failed to send reset email');
-    }
-  };
-
-  const handleSecurityChallenge = async () => {
-    try {
-      const response = await initiateSecurityChallenge(id);
+      const response = await deleteUser(id);
       if (response.success) {
-        toast.success('Security challenge sent to user');
+        toast.success('User deleted successfully');
+        navigate('/admin/users');
       }
     } catch (error) {
-      toast.error(error.message || 'Failed to initiate security challenge');
+      toast.error(error.message || 'Failed to delete user');
     }
   };
 
@@ -108,23 +66,34 @@ const UserDetails = () => {
     return colors[role] || 'bg-gray-100 text-gray-800 border-gray-200';
   };
 
+  const getAvailabilityColor = (status) => {
+    const colors = {
+      Available: 'bg-green-100 text-green-800 border-green-200',
+      Busy: 'bg-yellow-100 text-yellow-800 border-yellow-200',
+      Unavailable: 'bg-red-100 text-red-800 border-red-200'
+    };
+    return colors[status] || 'bg-gray-100 text-gray-800 border-gray-200';
+  };
+
   if (loading) {
     return <Loading fullScreen />;
   }
 
-  if (!user) {
+  if (!userData) {
     return null;
   }
+
+  const isTeacher = userData.role === 'Teacher';
 
   return (
     <div className="min-h-screen bg-gray-50">
       <Header />
-
+      
       <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
         {/* Back Button */}
         <Button
-          variant="ghost"
-          icon={<ArrowLeft size={20} />}
+          variant="outline"
+          icon={<ArrowLeft size={18} />}
           onClick={() => navigate('/admin/users')}
           className="mb-6"
         >
@@ -132,302 +101,218 @@ const UserDetails = () => {
         </Button>
 
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-          {/* Left Column - User Info */}
-          <div className="lg:col-span-2 space-y-6">
-            {/* Main Info Card */}
+          {/* Left Column - User Card */}
+          <div className="lg:col-span-1">
             <motion.div
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              className="bg-white rounded-xl shadow-md p-6"
+              initial={{ opacity: 0, x: -20 }}
+              animate={{ opacity: 1, x: 0 }}
+              className="bg-white rounded-xl shadow-md p-6 text-center"
             >
-              <div className="flex items-start justify-between mb-6">
-                <div className="flex items-center gap-4">
-                  <div className="w-16 h-16 bg-gradient-to-br from-[#193869] to-[#234e92] rounded-full flex items-center justify-center">
-                    <User className="w-8 h-8 text-white" />
-                  </div>
-                  <div>
-                    <h1 className="text-2xl font-bold text-gray-800">{user.username}</h1>
-                    <p className="text-gray-600">{user.email}</p>
-                  </div>
+              {/* Profile Picture */}
+              {userData.profile_picture ? (
+                <img
+                  src={getProfilePictureUrl(userData.profile_picture)}
+                  alt={userData.username}
+                  className="w-32 h-32 rounded-full object-cover border-4 border-[#193869] mx-auto mb-4"
+                />
+              ) : (
+                <div className="w-32 h-32 bg-gradient-to-br from-[#193869] to-[#234e92] rounded-full flex items-center justify-center mx-auto mb-4">
+                  <User className="w-16 h-16 text-white" />
                 </div>
+              )}
 
-                <div className="flex gap-2">
-                  <Button
-                    variant="outline"
-                    icon={<Edit size={18} />}
-                    onClick={() => setShowEditModal(true)}
-                  >
-                    Edit
-                  </Button>
-                  <Button
-                    variant="danger"
-                    icon={<Trash2 size={18} />}
-                    onClick={() => setShowDeleteModal(true)}
-                    disabled={user.role === 'Administrator'}
-                  >
-                    Delete
-                  </Button>
-                </div>
-              </div>
+              <h2 className="text-2xl font-bold text-gray-800 mb-2">{userData.username}</h2>
+              <p className="text-sm text-gray-600 mb-4 break-all">{userData.email}</p>
 
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                <div>
-                  <label className="text-sm font-medium text-gray-600 flex items-center gap-2">
-                    <Shield size={16} />
-                    Role
-                  </label>
-                  <span className={`inline-block mt-2 px-4 py-2 rounded-lg text-sm font-medium border ${getRoleBadgeColor(user.role)}`}>
-                    {user.role}
+              <div className="flex flex-col gap-2 items-center mb-4">
+                <span className={`inline-block px-4 py-2 rounded-full text-sm font-medium border ${getRoleBadgeColor(userData.role)}`}>
+                  {userData.role}
+                </span>
+
+                {isTeacher && userData.availability_status && (
+                  <span className={`inline-block px-4 py-2 rounded-full text-sm font-medium border ${getAvailabilityColor(userData.availability_status)}`}>
+                    {userData.availability_status}
                   </span>
-                </div>
+                )}
 
-                <div>
-                  <label className="text-sm font-medium text-gray-600 flex items-center gap-2">
-                    <Activity size={16} />
-                    Status
-                  </label>
-                  {user.is_active ? (
-                    <span className="inline-block mt-2 px-4 py-2 rounded-lg text-sm font-medium bg-green-100 text-green-800 border border-green-200">
-                      Active
-                    </span>
+                <div className="flex items-center gap-2">
+                  {userData.is_active ? (
+                    <>
+                      <CheckCircle className="w-5 h-5 text-green-600" />
+                      <span className="text-sm text-green-600 font-medium">Active</span>
+                    </>
                   ) : (
-                    <span className="inline-block mt-2 px-4 py-2 rounded-lg text-sm font-medium bg-red-100 text-red-800 border border-red-200">
-                      Inactive
-                    </span>
+                    <>
+                      <XCircle className="w-5 h-5 text-red-600" />
+                      <span className="text-sm text-red-600 font-medium">Inactive</span>
+                    </>
                   )}
                 </div>
-
-                <div>
-                  <label className="text-sm font-medium text-gray-600 flex items-center gap-2">
-                    <Calendar size={16} />
-                    Created
-                  </label>
-                  <p className="text-lg text-gray-800 mt-2">
-                    {new Date(user.created_at).toLocaleDateString('en-US', {
-                      year: 'numeric',
-                      month: 'long',
-                      day: 'numeric'
-                    })}
-                  </p>
-                </div>
-
-                <div>
-                  <label className="text-sm font-medium text-gray-600 flex items-center gap-2">
-                    <Clock size={16} />
-                    Last Login
-                  </label>
-                  <p className="text-lg text-gray-800 mt-2">
-                    {user.last_login 
-                      ? new Date(user.last_login).toLocaleDateString('en-US', {
-                          year: 'numeric',
-                          month: 'short',
-                          day: 'numeric',
-                          hour: '2-digit',
-                          minute: '2-digit'
-                        })
-                      : 'Never'}
-                  </p>
-                </div>
-
-                {user.created_by_username && (
-                  <div className="md:col-span-2">
-                    <label className="text-sm font-medium text-gray-600">Created By</label>
-                    <p className="text-lg text-gray-800 mt-2">{user.created_by_username}</p>
-                  </div>
-                )}
               </div>
-            </motion.div>
 
-            {/* Recent Activity */}
-            <motion.div
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ delay: 0.1 }}
-              className="bg-white rounded-xl shadow-md p-6"
-            >
-              <h2 className="text-xl font-bold text-gray-800 mb-4 flex items-center gap-2">
-                <Activity size={20} />
-                Recent Activity
-              </h2>
-
-              {user.recentActivity && user.recentActivity.length > 0 ? (
-                <div className="space-y-3">
-                  {user.recentActivity.map((activity, index) => (
-                    <div
-                      key={index}
-                      className="flex items-start gap-3 p-3 bg-gray-50 rounded-lg border border-gray-200"
-                    >
-                      <div className="w-2 h-2 bg-[#193869] rounded-full mt-2"></div>
-                      <div className="flex-1">
-                        <p className="text-sm font-medium text-gray-800">{activity.action}</p>
-                        <p className="text-xs text-gray-500 mt-1">
-                          {new Date(activity.created_at).toLocaleString()} • {activity.ip_address}
-                        </p>
-                      </div>
+              <div className="border-t border-gray-200 pt-4 mb-4">
+                <div className="text-sm text-gray-600 space-y-2">
+                  <div className="flex items-center justify-center gap-2">
+                    <Calendar className="w-4 h-4" />
+                    <span>
+                      Joined {new Date(userData.created_at).toLocaleDateString('en-US', {
+                        month: 'long',
+                        year: 'numeric'
+                      })}
+                    </span>
+                  </div>
+                  {userData.last_login && (
+                    <div className="text-xs text-gray-500">
+                      Last login: {new Date(userData.last_login).toLocaleString()}
                     </div>
-                  ))}
+                  )}
                 </div>
-              ) : (
-                <p className="text-gray-500 text-center py-8">No recent activity</p>
-              )}
+              </div>
+
+              {/* Action Buttons */}
+              <div className="space-y-2">
+                <Button
+                  variant="primary"
+                  icon={<Edit size={18} />}
+                  onClick={() => navigate(`/admin/users/${id}/edit`)}
+                  className="w-full"
+                >
+                  Edit User
+                </Button>
+                <Button
+                  variant="outline"
+                  icon={<Lock size={18} />}
+                  onClick={() => navigate(`/admin/users/${id}/reset-password`)}
+                  className="w-full"
+                >
+                  Reset Password
+                </Button>
+                <Button
+                  variant="danger"
+                  icon={<Trash2 size={18} />}
+                  onClick={handleDelete}
+                  className="w-full"
+                >
+                  Delete User
+                </Button>
+              </div>
             </motion.div>
           </div>
 
-          {/* Right Column - Actions */}
-          <div className="space-y-6">
-            <motion.div
-              initial={{ opacity: 0, x: 20 }}
-              animate={{ opacity: 1, x: 0 }}
-              className="bg-white rounded-xl shadow-md p-6"
-            >
-              <h2 className="text-lg font-bold text-gray-800 mb-4">Quick Actions</h2>
-
-              <div className="space-y-3">
-                <Button
-                  variant="outline"
-                  fullWidth
-                  icon={<Mail size={18} />}
-                  onClick={handlePasswordReset}
-                >
-                  Send Password Reset
-                </Button>
-
-                {user.has_security_questions > 0 && (
-                  <Button
-                    variant="outline"
-                    fullWidth
-                    icon={<Key size={18} />}
-                    onClick={handleSecurityChallenge}
-                  >
-                    Security Challenge
-                  </Button>
-                )}
-
-                <Button
-                  variant="outline"
-                  fullWidth
-                  icon={<RefreshCw size={18} />}
-                  onClick={fetchUserDetails}
-                >
-                  Refresh Data
-                </Button>
-              </div>
-            </motion.div>
-
+          {/* Right Column - User Details */}
+          <div className="lg:col-span-2 space-y-6">
+            {/* Basic Information */}
             <motion.div
               initial={{ opacity: 0, x: 20 }}
               animate={{ opacity: 1, x: 0 }}
               transition={{ delay: 0.1 }}
-              className="bg-gradient-to-br from-[#193869] to-[#234e92] rounded-xl shadow-xl p-6 text-white"
+              className="bg-white rounded-xl shadow-md p-6"
             >
-              <h3 className="font-bold mb-3">Account Information</h3>
-              <div className="space-y-2 text-sm text-blue-100">
-                <p>• User ID: #{user.id}</p>
-                <p>• Account Age: {Math.floor((new Date() - new Date(user.created_at)) / (1000 * 60 * 60 * 24))} days</p>
-                <p>• Security Questions: {user.has_security_questions > 0 ? 'Set' : 'Not set'}</p>
+              <h3 className="text-xl font-bold text-gray-800 mb-6">Basic Information</h3>
+              
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-sm font-medium text-gray-600 mb-2">Username</label>
+                  <div className="flex items-center gap-3 p-3 bg-gray-50 rounded-lg">
+                    <User className="w-5 h-5 text-gray-400" />
+                    <span className="text-gray-800">{userData.username}</span>
+                  </div>
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-gray-600 mb-2">Email</label>
+                  <div className="flex items-center gap-3 p-3 bg-gray-50 rounded-lg">
+                    <Mail className="w-5 h-5 text-gray-400" />
+                    <span className="text-gray-800 break-all">{userData.email}</span>
+                  </div>
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-gray-600 mb-2">Phone</label>
+                  <div className="flex items-center gap-3 p-3 bg-gray-50 rounded-lg">
+                    <Phone className="w-5 h-5 text-gray-400" />
+                    <span className="text-gray-800">{userData.phone || 'Not provided'}</span>
+                  </div>
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-gray-600 mb-2">Department</label>
+                  <div className="flex items-center gap-3 p-3 bg-gray-50 rounded-lg">
+                    <Building className="w-5 h-5 text-gray-400" />
+                    <span className="text-gray-800">{userData.department || 'Not provided'}</span>
+                  </div>
+                </div>
               </div>
+
+              {userData.created_by_username && (
+                <div className="mt-4 pt-4 border-t border-gray-200">
+                  <p className="text-sm text-gray-600">
+                    Created by: <span className="font-medium text-gray-800">{userData.created_by_username}</span>
+                  </p>
+                </div>
+              )}
+            </motion.div>
+
+            {/* Teacher-Specific Information */}
+            {isTeacher && (
+              <motion.div
+                initial={{ opacity: 0, x: 20 }}
+                animate={{ opacity: 1, x: 0 }}
+                transition={{ delay: 0.2 }}
+                className="bg-white rounded-xl shadow-md p-6"
+              >
+                <h3 className="text-xl font-bold text-gray-800 mb-6">Academic Information</h3>
+                
+                <div className="space-y-4">
+                  <div>
+                    <label className="flex items-center gap-2 text-sm font-medium text-gray-600 mb-2">
+                      <BookOpen className="w-5 h-5" />
+                      Research Areas
+                    </label>
+                    <div className="p-3 bg-gray-50 rounded-lg">
+                      <p className="text-gray-800 whitespace-pre-wrap">
+                        {userData.research_areas || 'Not provided'}
+                      </p>
+                    </div>
+                  </div>
+
+                  <div>
+                    <label className="flex items-center gap-2 text-sm font-medium text-gray-600 mb-2">
+                      <Award className="w-5 h-5" />
+                      Expertise
+                    </label>
+                    <div className="p-3 bg-gray-50 rounded-lg">
+                      <p className="text-gray-800 whitespace-pre-wrap">
+                        {userData.expertise || 'Not provided'}
+                      </p>
+                    </div>
+                  </div>
+
+                  <div>
+                    <label className="flex items-center gap-2 text-sm font-medium text-gray-600 mb-2">
+                      <Clock className="w-5 h-5" />
+                      Availability Status
+                    </label>
+                    <div className="p-3 bg-gray-50 rounded-lg">
+                      <span className={`inline-block px-3 py-1 rounded-full text-sm font-medium border ${getAvailabilityColor(userData.availability_status)}`}>
+                        {userData.availability_status || 'Available'}
+                      </span>
+                    </div>
+                  </div>
+                </div>
+              </motion.div>
+            )}
+
+            {/* Activity Log */}
+            <motion.div
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: 0.3 }}
+            >
+              <UserActivityLog userId={id} />
             </motion.div>
           </div>
         </div>
-
-        {/* Edit Modal */}
-        <Modal
-          isOpen={showEditModal}
-          onClose={() => setShowEditModal(false)}
-          title="Edit User"
-          size="md"
-        >
-          <div className="space-y-4">
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">Email</label>
-              <input
-                type="email"
-                value={editFormData.email}
-                onChange={(e) => setEditFormData(prev => ({ ...prev, email: e.target.value }))}
-                className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#193869] focus:border-transparent"
-              />
-            </div>
-
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">Role</label>
-              <select
-                value={editFormData.role}
-                onChange={(e) => setEditFormData(prev => ({ ...prev, role: e.target.value }))}
-                className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#193869] focus:border-transparent"
-              >
-                <option value="Student">Student</option>
-                <option value="Teacher">Teacher</option>
-                <option value="Committee">Committee</option>
-                <option value="Administrator">Administrator</option>
-              </select>
-            </div>
-
-            <div className="flex items-center gap-3 p-4 bg-gray-50 rounded-lg">
-              <input
-                type="checkbox"
-                id="is_active"
-                checked={editFormData.is_active}
-                onChange={(e) => setEditFormData(prev => ({ ...prev, is_active: e.target.checked }))}
-                className="w-4 h-4 text-[#193869] rounded focus:ring-[#193869]"
-              />
-              <label htmlFor="is_active" className="text-sm text-gray-700">
-                Account is active
-              </label>
-            </div>
-
-            <div className="flex gap-3 pt-4">
-              <Button
-                variant="primary"
-                fullWidth
-                onClick={handleUpdateUser}
-                loading={updating}
-              >
-                Save Changes
-              </Button>
-              <Button
-                variant="outline"
-                fullWidth
-                onClick={() => setShowEditModal(false)}
-              >
-                Cancel
-              </Button>
-            </div>
-          </div>
-        </Modal>
-
-        {/* Delete Modal */}
-        <Modal
-          isOpen={showDeleteModal}
-          onClose={() => setShowDeleteModal(false)}
-          title="Delete User"
-          size="md"
-        >
-          <div className="space-y-4">
-            <div className="bg-red-50 border border-red-200 rounded-lg p-4">
-              <p className="text-red-800 font-medium mb-2">⚠️ Warning: This action cannot be undone!</p>
-              <p className="text-red-700 text-sm">
-                You are about to permanently delete <strong>{user.username}</strong>. All associated data will be removed.
-              </p>
-            </div>
-
-            <div className="flex gap-3">
-              <Button
-                variant="danger"
-                fullWidth
-                onClick={handleDeleteUser}
-              >
-                Delete User
-              </Button>
-              <Button
-                variant="outline"
-                fullWidth
-                onClick={() => setShowDeleteModal(false)}
-              >
-                Cancel
-              </Button>
-            </div>
-          </div>
-        </Modal>
       </main>
     </div>
   );
