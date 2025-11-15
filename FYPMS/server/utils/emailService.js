@@ -1,0 +1,194 @@
+const { transporter } = require('../config/email');
+require('dotenv').config();
+
+// Base email template with branding
+const emailTemplate = (content) => `
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <style>
+    body { font-family: Arial, sans-serif; line-height: 1.6; color: #333; }
+    .container { max-width: 600px; margin: 0 auto; padding: 20px; }
+    .header { background: linear-gradient(135deg, #193869 0%, #234e92 100%); 
+              color: white; padding: 30px; text-align: center; border-radius: 10px 10px 0 0; }
+    .content { background: white; padding: 30px; border: 1px solid #e0e0e0; }
+    .button { display: inline-block; padding: 12px 30px; background: #d29538; 
+              color: white; text-decoration: none; border-radius: 5px; margin: 20px 0; }
+    .footer { text-align: center; padding: 20px; color: #666; font-size: 12px; }
+    .warning { background: #fff3cd; border-left: 4px solid #d29538; padding: 15px; margin: 20px 0; }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <div class="header">
+      <h1>FYP Authentication System</h1>
+    </div>
+    <div class="content">
+      ${content}
+    </div>
+    <div class="footer">
+      <p>© 2025 FYP Authentication System. All rights reserved.</p>
+      <p>This is an automated message. Please do not reply.</p>
+    </div>
+  </div>
+</body>
+</html>
+`;
+
+// Password reset email
+const sendPasswordResetEmail = async (email, username, token) => {
+  const resetUrl = `${process.env.FRONTEND_URL}/reset-password?token=${token}`;
+  
+  const content = `
+    <h2>Password Reset Request</h2>
+    <p>Hello <strong>${username}</strong>,</p>
+    <p>You requested to reset your password. Click the button below to create a new password:</p>
+    <a href="${resetUrl}" class="button">Reset Password</a>
+    <p>Or copy and paste this link into your browser:</p>
+    <p style="word-break: break-all; color: #193869;">${resetUrl}</p>
+    <div class="warning">
+      <strong>⚠️ Security Notice:</strong>
+      <ul>
+        <li>This link will expire in 1 hour</li>
+        <li>If you didn't request this, please ignore this email</li>
+        <li>Never share this link with anyone</li>
+      </ul>
+    </div>
+  `;
+
+  const mailOptions = {
+    from: process.env.EMAIL_FROM,
+    to: email,
+    subject: 'Password Reset Request - FYP Auth System',
+    html: emailTemplate(content)
+  };
+
+  try {
+    await transporter.sendMail(mailOptions);
+    return true;
+  } catch (error) {
+    console.error('Email send error:', error);
+    throw new Error('Failed to send email');
+  }
+};
+
+// Account creation email
+const sendAccountCreationEmail = async (email, username, temporaryPassword) => {
+  const loginUrl = `${process.env.FRONTEND_URL}/login`;
+  
+  const content = `
+    <h2>Your Account Has Been Created</h2>
+    <p>Hello <strong>${username}</strong>,</p>
+    <p>An administrator has created an account for you in the FYP Authentication System.</p>
+    <h3>Login Credentials:</h3>
+    <ul>
+      <li><strong>Username:</strong> ${username}</li>
+      <li><strong>Email:</strong> ${email}</li>
+      <li><strong>Temporary Password:</strong> <code>${temporaryPassword}</code></li>
+    </ul>
+    <a href="${loginUrl}" class="button">Login Now</a>
+    <div class="warning">
+      <strong>🔒 Important:</strong>
+      <ul>
+        <li>Please change your password after first login</li>
+        <li>Keep your credentials secure</li>
+        <li>Never share your password with anyone</li>
+      </ul>
+    </div>
+  `;
+
+  const mailOptions = {
+    from: process.env.EMAIL_FROM,
+    to: email,
+    subject: 'Your Account Has Been Created - FYP Auth System',
+    html: emailTemplate(content)
+  };
+
+  try {
+    await transporter.sendMail(mailOptions);
+    return true;
+  } catch (error) {
+    console.error('Email send error:', error);
+    throw new Error('Failed to send email');
+  }
+};
+
+// Security question challenge email
+const sendSecurityChallengeEmail = async (email, username, token, adminName) => {
+  const challengeUrl = `${process.env.FRONTEND_URL}/security-challenge?token=${token}`;
+  
+  const content = `
+    <h2>Security Verification Required</h2>
+    <p>Hello <strong>${username}</strong>,</p>
+    <p>Administrator <strong>${adminName}</strong> has initiated a password reset for your account.</p>
+    <p>To proceed, please verify your identity by answering your security questions:</p>
+    <a href="${challengeUrl}" class="button">Verify Identity</a>
+    <p>Or copy and paste this link into your browser:</p>
+    <p style="word-break: break-all; color: #193869;">${challengeUrl}</p>
+    <div class="warning">
+      <strong>⚠️ Security Notice:</strong>
+      <ul>
+        <li>This link will expire in 30 minutes</li>
+        <li>If you didn't request this, contact the administrator immediately</li>
+        <li>Your answers must match exactly</li>
+      </ul>
+    </div>
+  `;
+
+  const mailOptions = {
+    from: process.env.EMAIL_FROM,
+    to: email,
+    subject: 'Security Verification Required - FYP Auth System',
+    html: emailTemplate(content)
+  };
+
+  try {
+    await transporter.sendMail(mailOptions);
+    return true;
+  } catch (error) {
+    console.error('Email send error:', error);
+    throw new Error('Failed to send email');
+  }
+};
+
+// Password changed notification
+const sendPasswordChangedEmail = async (email, username) => {
+  const content = `
+    <h2>Password Changed Successfully</h2>
+    <p>Hello <strong>${username}</strong>,</p>
+    <p>Your password has been changed successfully.</p>
+    <p>If you didn't make this change, please contact an administrator immediately.</p>
+    <div class="warning">
+      <strong>🔒 Security Tip:</strong>
+      <ul>
+        <li>Use a unique password for each account</li>
+        <li>Never share your password</li>
+        <li>Enable additional security features when available</li>
+      </ul>
+    </div>
+  `;
+
+  const mailOptions = {
+    from: process.env.EMAIL_FROM,
+    to: email,
+    subject: 'Password Changed - FYP Auth System',
+    html: emailTemplate(content)
+  };
+
+  try {
+    await transporter.sendMail(mailOptions);
+    return true;
+  } catch (error) {
+    console.error('Email send error:', error);
+    // Don't throw error for notification emails
+    return false;
+  }
+};
+
+module.exports = {
+  sendPasswordResetEmail,
+  sendAccountCreationEmail,
+  sendSecurityChallengeEmail,
+  sendPasswordChangedEmail
+};
