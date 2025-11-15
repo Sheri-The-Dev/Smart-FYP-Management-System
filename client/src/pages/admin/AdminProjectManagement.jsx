@@ -63,7 +63,6 @@ const AdminProjectManagement = () => {
     const initializePage = async () => {
       setInitialLoading(true);
       try {
-        // Only fetch stats on mount, don't search projects yet
         await fetchStats();
       } catch (error) {
         console.error('Initialization error:', error);
@@ -112,7 +111,6 @@ const AdminProjectManagement = () => {
       setStats(response);
     } catch (error) {
       console.error('Failed to load stats:', error);
-      // Don't show error toast for stats, just log it
       setStats({
         total: 0,
         byYear: [],
@@ -152,9 +150,26 @@ const AdminProjectManagement = () => {
     setShowUploadModal(true);
   };
 
-  const handleEditProject = (project) => {
-    setEditingProject(project);
-    setShowUploadModal(true);
+  // ============================================
+  // CRITICAL FIX: Fetch full project details before editing
+  // ============================================
+  const handleEditProject = async (project) => {
+    try {
+      // Show loading state
+      showToast('Loading project details...', 'info');
+      
+      // Fetch complete project data including full abstract
+      const response = await getProjectDetails(project.id);
+      
+      // Set the complete project data for editing
+      setEditingProject(response);
+      setShowUploadModal(true);
+      
+      console.log('✅ Full project data loaded for editing:', response);
+    } catch (error) {
+      console.error('❌ Failed to load project for editing:', error);
+      showToast(error.message || 'Failed to load project details', 'error');
+    }
   };
 
   const handleDeleteProject = async (project) => {

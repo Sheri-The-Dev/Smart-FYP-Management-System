@@ -48,23 +48,43 @@ const BulkImportModal = ({ isOpen, onClose, onSuccess }) => {
 
       // Import projects
       const response = await bulkImportProjects(projects);
-      setImportResults(response.data);
       
-      if (response.data.successful > 0) {
+      // Debug logging
+      console.log('Bulk import response:', response);
+      console.log('Response type:', typeof response);
+      console.log('Response.success:', response?.success);
+      console.log('Response.data:', response?.data);
+      
+      // Simple validation - just check if we have data
+      if (!response || !response.data || typeof response.data.total === 'undefined') {
+        console.error('Invalid response structure:', response);
+        throw new Error('Invalid response from server');
+      }
+      
+      const results = response.data;
+      setImportResults(results);
+      
+      if (results.successful > 0) {
         showToast(
-          `Successfully imported ${response.data.successful} project(s)`,
+          `Successfully imported ${results.successful} project(s)`,
           'success'
         );
         onSuccess();
       }
       
-      if (response.data.failed > 0) {
+      if (results.failed > 0) {
         showToast(
-          `${response.data.failed} project(s) failed to import`,
+          `${results.failed} project(s) failed to import`,
           'warning'
         );
       }
+      
+      // If no projects were imported at all
+      if (results.successful === 0 && results.failed === 0) {
+        showToast('No projects were imported', 'warning');
+      }
     } catch (error) {
+      console.error('Bulk import error:', error);
       showToast(error.message || 'Failed to import projects', 'error');
     } finally {
       setLoading(false);
@@ -73,8 +93,9 @@ const BulkImportModal = ({ isOpen, onClose, onSuccess }) => {
 
   const handleDownloadTemplate = () => {
     const csvContent = `title,year,abstract,department,supervisor_name,supervisor_id,technology_type,final_grade,keywords,student_names
-"AI-Powered Healthcare System",2024,"This project develops an AI system for medical diagnosis using deep learning",Computer Science,"Dr. Sarah Johnson",,Artificial Intelligence,A+,"AI, Healthcare, Deep Learning","John Doe, Jane Smith"
-"Smart Campus IoT",2024,"Implementation of IoT infrastructure for smart campus management",Computer Engineering,"Prof. Michael Chen",,Internet of Things,A,"IoT, Smart Campus, Automation","Ahmed Ali, Fatima Khan"`;
+"AI-Powered Healthcare System",2024,"This project develops an artificial intelligence system for medical diagnosis and patient care using deep learning algorithms and neural networks. The system can analyze medical images and provide diagnostic recommendations.",Computer Science,"Dr. Sarah Johnson",,Artificial Intelligence,A+,"AI, Healthcare, Deep Learning, Medical Diagnosis","John Doe, Jane Smith"
+"Smart Campus IoT Platform",2024,"Implementation of comprehensive IoT infrastructure for smart campus management including automated lighting, climate control, security systems, and resource monitoring using wireless sensor networks.",Computer Engineering,"Prof. Michael Chen",,Internet of Things,A,"IoT, Smart Campus, Automation, Wireless Networks","Ahmed Ali, Fatima Khan"
+"E-Commerce Web Application",2023,"Full-stack e-commerce platform with payment integration, inventory management, user authentication, and real-time order tracking built using modern web technologies.",Software Engineering,"Dr. Emily Rodriguez",,Web Development,A-,"E-Commerce, Full Stack, Payment Integration, Web Application","Sarah Williams, Tom Brown"`;
 
     const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
     const link = document.createElement('a');
@@ -265,11 +286,11 @@ const BulkImportModal = ({ isOpen, onClose, onSuccess }) => {
                 <div className="bg-gray-50 rounded-lg p-4">
                   <h3 className="font-semibold text-gray-900 mb-2">Required CSV Columns</h3>
                   <ul className="text-sm text-gray-600 space-y-1">
-                    <li>• <span className="font-medium">title</span> - Project title (minimum 5 characters)</li>
-                    <li>• <span className="font-medium">year</span> - Project year (4-digit number)</li>
-                    <li>• <span className="font-medium">abstract</span> - Project abstract (minimum 50 characters)</li>
-                    <li>• <span className="font-medium">department</span> - Department name</li>
-                    <li>• <span className="font-medium">supervisor_name</span> - Supervisor's name</li>
+                    <li>â€¢ <span className="font-medium">title</span> - Project title (minimum 5 characters)</li>
+                    <li>â€¢ <span className="font-medium">year</span> - Project year (4-digit number)</li>
+                    <li>â€¢ <span className="font-medium">abstract</span> - Project abstract (minimum 50 characters)</li>
+                    <li>â€¢ <span className="font-medium">department</span> - Department name</li>
+                    <li>â€¢ <span className="font-medium">supervisor_name</span> - Supervisor's name</li>
                   </ul>
                   <p className="text-xs text-gray-500 mt-3">
                     Optional columns: supervisor_id, technology_type, final_grade, keywords, student_names

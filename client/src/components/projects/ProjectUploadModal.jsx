@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { X, Upload, AlertCircle } from 'lucide-react';
 import { useToast } from '../common/Toast';
@@ -12,17 +12,51 @@ const ProjectUploadModal = ({ isOpen, onClose, onSuccess, editProject = null }) 
   const [errors, setErrors] = useState({});
 
   const [formData, setFormData] = useState({
-    title: editProject?.title || '',
-    year: editProject?.year || new Date().getFullYear(),
-    abstract: editProject?.abstract || '',
-    department: editProject?.department || '',
-    supervisor_name: editProject?.supervisor_name || '',
-    supervisor_id: editProject?.supervisor_id || '',
-    technology_type: editProject?.technology_type || '',
-    final_grade: editProject?.final_grade || '',
-    keywords: editProject?.keywords || '',
-    student_names: editProject?.student_names || ''
+    title: '',
+    year: new Date().getFullYear(),
+    abstract: '',
+    department: '',
+    supervisor_name: '',
+    supervisor_id: '',
+    technology_type: '',
+    final_grade: '',
+    keywords: '',
+    student_names: ''
   });
+
+  // Update form data when editProject changes
+  useEffect(() => {
+    if (editProject) {
+      setFormData({
+        title: editProject.title || '',
+        year: editProject.year || new Date().getFullYear(),
+        abstract: editProject.abstract || '',
+        department: editProject.department || '',
+        supervisor_name: editProject.supervisor_name || '',
+        supervisor_id: editProject.supervisor_id || '',
+        technology_type: editProject.technology_type || '',
+        final_grade: editProject.final_grade || '',
+        keywords: editProject.keywords || '',
+        student_names: editProject.student_names || ''
+      });
+      setErrors({});
+    } else {
+      // Reset form for new project
+      setFormData({
+        title: '',
+        year: new Date().getFullYear(),
+        abstract: '',
+        department: '',
+        supervisor_name: '',
+        supervisor_id: '',
+        technology_type: '',
+        final_grade: '',
+        keywords: '',
+        student_names: ''
+      });
+      setErrors({});
+    }
+  }, [editProject, isOpen]); // Re-run when editProject or isOpen changes
 
   const handleInputChange = (field, value) => {
     setFormData(prev => ({ ...prev, [field]: value }));
@@ -242,6 +276,9 @@ const ProjectUploadModal = ({ isOpen, onClose, onSuccess, editProject = null }) 
                         onChange={(e) => handleInputChange('supervisor_id', e.target.value)}
                         placeholder="Enter user ID if exists"
                       />
+                      <p className="mt-1 text-xs text-gray-500">
+                        Must be a valid user ID from the users table. Leave empty if not linked to a user account.
+                      </p>
                     </div>
                   </div>
 

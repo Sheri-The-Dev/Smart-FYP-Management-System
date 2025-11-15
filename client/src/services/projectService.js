@@ -119,15 +119,55 @@ export const parseCSVFile = (file) => {
     reader.onload = (e) => {
       try {
         const text = e.target.result;
+        
+        if (!text || text.trim().length === 0) {
+          reject(new Error('CSV file is empty'));
+          return;
+        }
+        
         const lines = text.split('\n').filter(line => line.trim());
         
         if (lines.length < 2) {
-          reject(new Error('CSV file is empty or has no data rows'));
+          reject(new Error('CSV file must have at least a header row and one data row'));
           return;
         }
 
+        // Helper function to properly parse CSV line with quoted fields
+        const parseCSVLine = (line) => {
+          const values = [];
+          let current = '';
+          let inQuotes = false;
+          
+          for (let i = 0; i < line.length; i++) {
+            const char = line[i];
+            const nextChar = line[i + 1];
+            
+            if (char === '"') {
+              if (inQuotes && nextChar === '"') {
+                // Escaped quote
+                current += '"';
+                i++; // Skip next quote
+              } else {
+                // Toggle quote state
+                inQuotes = !inQuotes;
+              }
+            } else if (char === ',' && !inQuotes) {
+              // End of field
+              values.push(current.trim());
+              current = '';
+            } else {
+              current += char;
+            }
+          }
+          
+          // Add last field
+          values.push(current.trim());
+          
+          return values;
+        };
+
         // Parse header
-        const headers = lines[0].split(',').map(h => h.trim().toLowerCase());
+        const headers = parseCSVLine(lines[0]).map(h => h.trim().toLowerCase().replace(/^"|"$/g, ''));
         
         // Required fields
         const requiredFields = ['title', 'year', 'abstract', 'department', 'supervisor_name'];
@@ -141,25 +181,33 @@ export const parseCSVFile = (file) => {
         // Parse data rows
         const projects = [];
         for (let i = 1; i < lines.length; i++) {
-          const values = lines[i].split(',').map(v => v.trim());
+          const values = parseCSVLine(lines[i]);
+          
+          // Skip empty rows
+          if (values.every(v => !v)) {
+            continue;
+          }
           
           if (values.length !== headers.length) {
-            continue; // Skip malformed rows
+            console.warn(`Row ${i + 1} has mismatched columns (expected ${headers.length}, got ${values.length}). Skipping.`);
+            continue;
           }
 
           const project = {};
           headers.forEach((header, index) => {
-            project[header] = values[index] || null;
+            // Remove surrounding quotes and trim
+            let value = values[index].replace(/^"|"$/g, '').trim();
+            project[header] = value || null;
           });
 
-          // Map to correct field names
+          // Map to correct field names and clean data
           projects.push({
-            title: project.title,
-            year: project.year,
-            abstract: project.abstract,
-            department: project.department,
-            supervisor_name: project.supervisor_name,
-            supervisor_id: project.supervisor_id || null,
+            title: project.title || '',
+            year: project.year || '',
+            abstract: project.abstract || '',
+            department: project.department || '',
+            supervisor_name: project.supervisor_name || '',
+            supervisor_id: project.supervisor_id && project.supervisor_id !== '' ? project.supervisor_id : null,
             technology_type: project.technology_type || project.technology || null,
             final_grade: project.final_grade || project.grade || null,
             keywords: project.keywords || null,
@@ -167,14 +215,25 @@ export const parseCSVFile = (file) => {
           });
         }
 
+        if (projects.length === 0) {
+          reject(new Error('No valid project rows found in CSV file. Please check your file format.'));
+          return;
+        }
+
+        console.log(`Successfully parsed ${projects.length} projects from CSV`);
         resolve(projects);
       } catch (error) {
+        console.error('CSV parsing error:', error);
         reject(new Error('Failed to parse CSV file: ' + error.message));
       }
     };
 
-    reader.onerror = () => reject(new Error('Failed to read file'));
-    reader.readAsText(file);
+    reader.onerror = () => {
+      console.error('File reading error');
+      reject(new Error('Failed to read file. Please try again.'));
+    };
+    
+    reader.readAsText(file, 'UTF-8'); // Explicitly specify UTF-8 encoding
   });
 };
 
