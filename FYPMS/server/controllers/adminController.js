@@ -7,9 +7,17 @@ const { logAudit, getClientIp, AuditActions } = require('../utils/logger');
 // Create new user (Admin only)
 const createUser = async (req, res) => {
   try {
-    const { username, email, role, password, sendEmail } = req.body;
+    const { username, email, role, password, sendEmail, department } = req.body;
     const adminId = req.user.id;
     const ipAddress = getClientIp(req);
+
+    // Validate department for Teachers
+    if (role === 'Teacher' && !department) {
+      return res.status(400).json({
+        success: false,
+        message: 'Department is required for teachers.'
+      });
+    }
 
     // Check if username already exists
     const [existingUser] = await query(
@@ -30,11 +38,11 @@ const createUser = async (req, res) => {
 
     // Create user
     const userSql = `
-      INSERT INTO users (username, email, password_hash, role, created_by)
-      VALUES (?, ?, ?, ?, ?)
+      INSERT INTO users (username, email, password_hash, role, department, created_by)
+      VALUES (?, ?, ?, ?, ?, ?)
     `;
     
-    const result = await query(userSql, [username, email, passwordHash, role, adminId]);
+    const result = await query(userSql, [username, email, passwordHash, role, role === 'Teacher' ? department : null, adminId]);
     const newUserId = result.insertId;
 
     // Log user creation
@@ -44,14 +52,14 @@ const createUser = async (req, res) => {
       action: AuditActions.USER_CREATED,
       entityType: 'user',
       entityId: newUserId,
-      details: { username, email, role },
+      details: { username, email, role, department: role === 'Teacher' ? department : undefined },
       ipAddress
     });
 
     // Send account creation email if requested
     if (sendEmail) {
       try {
-        await sendAccountCreationEmail(email, username, temporaryPassword);
+        await sendAccountCreationEmail(email, username, temporaryPassword, role === 'Teacher' ? department : null);
       } catch (emailError) {
         console.error('Account creation email error:', emailError);
         // Don't fail the request if email fails
@@ -66,6 +74,7 @@ const createUser = async (req, res) => {
         username,
         email,
         role,
+        department: role === 'Teacher' ? department : null,
         temporaryPassword: sendEmail ? undefined : temporaryPassword
       }
     });
@@ -87,7 +96,7 @@ const getAllUsers = async (req, res) => {
 
     let sql = `
       SELECT 
-        u.id, u.username, u.email, u.role, u.is_active, 
+        u.id, u.username, u.email, u.role, u.department, u.is_active, 
         u.created_at, u.last_login,
         creator.username as created_by_username
       FROM users u
@@ -149,7 +158,7 @@ const getUserById = async (req, res) => {
 
     const userSql = `
       SELECT 
-        u.id, u.username, u.email, u.role, u.is_active, 
+        u.id, u.username, u.email, u.role, u.department, u.is_active, 
         u.created_at, u.last_login, u.updated_at,
         creator.username as created_by_username,
         (SELECT COUNT(*) FROM security_questions WHERE user_id = u.id) as has_security_questions
@@ -199,12 +208,12 @@ const getUserById = async (req, res) => {
 const updateUser = async (req, res) => {
   try {
     const { id } = req.params;
-    const { email, role, is_active } = req.body;
+    const { email, role, is_active, department } = req.body;
     const adminId = req.user.id;
     const ipAddress = getClientIp(req);
 
     // Check if user exists
-    const [user] = await query('SELECT username FROM users WHERE id = ?', [id]);
+    const [user] = await query('SELECT username, role FROM users WHERE id = ?', [id]);
     
     if (!user) {
       return res.status(404).json({
@@ -255,6 +264,17 @@ const updateUser = async (req, res) => {
       params.push(is_active);
     }
 
+    // Handle department update
+    // Allow updating department if role is Teacher OR if we are changing role to Teacher
+    const effectiveRole = role || user.role;
+    if (effectiveRole === 'Teacher' && department !== undefined) {
+      updates.push('department = ?');
+      params.push(department);
+    } else if (effectiveRole !== 'Teacher' && role) {
+      // If changing from Teacher to something else, clear department
+      updates.push('department = NULL');
+    }
+
     if (updates.length === 0) {
       return res.status(400).json({
         success: false,
@@ -275,7 +295,7 @@ const updateUser = async (req, res) => {
       action: AuditActions.USER_UPDATED,
       entityType: 'user',
       entityId: id,
-      details: { username: user.username, changes: { email, role, is_active } },
+      details: { username: user.username, changes: { email, role, is_active, department } },
       ipAddress
     });
 
@@ -893,36 +913,65 @@ const bulkCreateUsers = async (req, res) => {
     // Email validation regex
     const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
     
-    // Parse and validate emails
-    const emails = [];
+    // Parse and validate emails (and departments for teachers)
+    const usersToCreate = []; // Array of { email, department }
     const errors = [];
     const duplicatesInFile = new Set();
 
     lines.forEach((line, index) => {
-      const trimmedLine = line.trim().replace(/^"|"$/g, ''); // Remove quotes
+      // For Teacher role, we expect: email,department
+      // For others: email
       
-      // Check for commas (should only have emails)
-      if (trimmedLine.includes(',')) {
-        errors.push(`Line ${index + 1}: File should contain only email addresses`);
-        return;
+      let email = '';
+      let department = null;
+
+      if (role === 'Teacher') {
+        const parts = line.trim().split(',');
+        if (parts.length < 2) {
+          // Maybe they didn't provide department?
+          // We should probably require it as per requirements "add one more field... for teacher role only"
+          // But maybe we can allow empty? Let's require it if possible, or default to null.
+          // User said "add the department field there", implies it should be present.
+          email = parts[0].trim().replace(/^"|"$/g, '');
+          // If missing department, we might flag error or allow null. Let's flag warning or error.
+          // "add the department field there for teacher role only" -> implies usage.
+          // Let's require it for better data integrity.
+          // But wait, previous logic disallowed commas.
+        } else {
+          email = parts[0].trim().replace(/^"|"$/g, '');
+          department = parts[1].trim().replace(/^"|"$/g, '');
+        }
+      } else {
+        const trimmedLine = line.trim().replace(/^"|"$/g, ''); // Remove quotes
+        // Check for commas (should only have emails for non-teachers)
+        if (trimmedLine.includes(',')) {
+          errors.push(`Line ${index + 1}: File should contain only email addresses (no commas allowed for ${role})`);
+          return;
+        }
+        email = trimmedLine;
       }
 
       // Validate email format
-      if (!emailRegex.test(trimmedLine)) {
-        errors.push(`Line ${index + 1}: Invalid email format - "${trimmedLine}"`);
+      if (!emailRegex.test(email)) {
+        errors.push(`Line ${index + 1}: Invalid email format - "${email}"`);
         return;
       }
 
-      const emailLower = trimmedLine.toLowerCase();
+      if (role === 'Teacher' && !department) {
+         errors.push(`Line ${index + 1}: Department is required for Teachers (format: email,department)`);
+         return;
+      }
+
+      const emailLower = email.toLowerCase();
       
       // Check for duplicates within file
-      if (emails.includes(emailLower)) {
-        duplicatesInFile.add(emailLower);
-        errors.push(`Line ${index + 1}: Duplicate email - "${trimmedLine}"`);
+      if (duplicatesInFile.has(emailLower)) {
+        errors.push(`Line ${index + 1}: Duplicate email - "${email}"`);
         return;
       }
 
-      emails.push(emailLower);
+      duplicatesInFile.add(emailLower);
+      usersToCreate.push({ email: emailLower, department });
     });
 
     // Clean up uploaded file
@@ -937,6 +986,7 @@ const bulkCreateUsers = async (req, res) => {
     }
 
     // Check for existing users in database
+    const emails = usersToCreate.map(u => u.email);
     const existingEmailsQuery = `
       SELECT email FROM users WHERE email IN (${emails.map(() => '?').join(',')})
     `;
@@ -944,9 +994,9 @@ const bulkCreateUsers = async (req, res) => {
     const existingEmails = existingUsers.map(u => u.email.toLowerCase());
 
     // Filter out existing emails
-    const newEmails = emails.filter(email => !existingEmails.includes(email));
+    const newUsers = usersToCreate.filter(u => !existingEmails.includes(u.email));
     
-    if (newEmails.length === 0) {
+    if (newUsers.length === 0) {
       return res.status(400).json({
         success: false,
         message: 'All emails already exist in the system',
@@ -968,10 +1018,10 @@ const bulkCreateUsers = async (req, res) => {
       failedEmails: []
     };
 
-    for (const email of newEmails) {
+    for (const user of newUsers) {
       try {
         // Extract username from email (text before @)
-        const username = email.split('@')[0];
+        const username = user.email.split('@')[0];
         
         // Check if username already exists, if so append random number
         let finalUsername = username;
@@ -994,7 +1044,7 @@ const bulkCreateUsers = async (req, res) => {
 
         if (usernameExists) {
           results.failed++;
-          results.failedEmails.push({ email, reason: 'Username conflict' });
+          results.failedEmails.push({ email: user.email, reason: 'Username conflict' });
           continue;
         }
 
@@ -1004,11 +1054,11 @@ const bulkCreateUsers = async (req, res) => {
 
         // Insert user
         const userSql = `
-          INSERT INTO users (username, email, password_hash, role, created_by)
-          VALUES (?, ?, ?, ?, ?)
+          INSERT INTO users (username, email, password_hash, role, department, created_by)
+          VALUES (?, ?, ?, ?, ?, ?)
         `;
         
-        const result = await query(userSql, [finalUsername, email, passwordHash, role, adminId]);
+        const result = await query(userSql, [finalUsername, user.email, passwordHash, role, user.department, adminId]);
         const newUserId = result.insertId;
 
         // Log user creation
@@ -1018,25 +1068,25 @@ const bulkCreateUsers = async (req, res) => {
           action: AuditActions.USER_CREATED,
           entityType: 'user',
           entityId: newUserId,
-          details: { username: finalUsername, email, role, method: 'bulk_create' },
+          details: { username: finalUsername, email: user.email, role, department: user.department, method: 'bulk_create' },
           ipAddress
         });
 
         // Send account creation email
         try {
-          await sendAccountCreationEmail(email, finalUsername, temporaryPassword);
+          await sendAccountCreationEmail(user.email, finalUsername, temporaryPassword, role === 'Teacher' ? user.department : null);
           results.created++;
         } catch (emailError) {
-          console.error('Email error for', email, ':', emailError);
+          console.error('Email error for', user.email, ':', emailError);
           // Still count as created but note email failure
           results.created++;
-          results.failedEmails.push({ email, reason: 'Email send failed' });
+          results.failedEmails.push({ email: user.email, reason: 'Email send failed' });
         }
 
       } catch (error) {
-        console.error('Error creating user for', email, ':', error);
+        console.error('Error creating user for', user.email, ':', error);
         results.failed++;
-        results.failedEmails.push({ email, reason: error.message || 'Database error' });
+        results.failedEmails.push({ email: user.email, reason: error.message || 'Database error' });
       }
     }
 
