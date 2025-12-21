@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
-import { Search, UserPlus, Edit, Trash2, Mail, Shield, Eye } from 'lucide-react';
+import { Search, UserPlus, Edit, Trash2, Mail, Shield, Eye, Users } from 'lucide-react';
 import Header from '../../components/layout/Header';
 import Loading from '../../components/common/Loading';
 import Button from '../../components/common/Button';
@@ -10,6 +10,7 @@ import { useToast } from '../../components/common/Toast';
 import { getAllUsers, createUser, deleteUser } from '../../services/adminService';
 import { ROLES } from '../../utils/constants';
 import { validatePassword, isValidEmail, isValidUsername } from '../../utils/validation';
+import BulkCreateUsersModal from '../../components/admin/BulkCreateUsersModal';
 
 const UsersManagement = () => {
   const toast = useToast();
@@ -20,6 +21,10 @@ const UsersManagement = () => {
   const [roleFilter, setRoleFilter] = useState('all');
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [deleteModalUser, setDeleteModalUser] = useState(null);
+  const [showBulkCreateModal, setShowBulkCreateModal] = useState(false);
+
+  // Selection state for bulk delete
+  const [selectedUsers, setSelectedUsers] = useState([]);
 
   const [createFormData, setCreateFormData] = useState({
     username: '',
@@ -120,6 +125,52 @@ const UsersManagement = () => {
     }
   };
 
+  // Bulk delete handler
+  const handleBulkDelete = async () => {
+    if (selectedUsers.length === 0) return;
+
+    try {
+      // Delete all selected users
+      await Promise.all(selectedUsers.map(id => deleteUser(id)));
+      toast.success(`${selectedUsers.length} user(s) deleted successfully`);
+      setSelectedUsers([]);
+      setDeleteModalUser(null);
+      fetchUsers();
+    } catch (error) {
+      toast.error(error.message || 'Failed to delete users');
+    }
+  };
+
+  // Checkbox selection handlers
+  const handleSelectUser = (userId) => {
+    setSelectedUsers(prev => 
+      prev.includes(userId) 
+        ? prev.filter(id => id !== userId)
+        : [...prev, userId]
+    );
+  };
+
+  const handleSelectAll = () => {
+    if (selectedUsers.length === users.length) {
+      setSelectedUsers([]);
+    } else {
+      // Only select users that can be deleted (not Administrators)
+      setSelectedUsers(users.filter(u => u.role !== 'Administrator').map(u => u.id));
+    }
+  };
+
+  const isUserSelected = (userId) => selectedUsers.includes(userId);
+
+  const handleBulkCreateSuccess = (data) => {
+    const { created, failed, total } = data.data;
+    if (created > 0) {
+      toast.success(`Successfully created ${created} user${created !== 1 ? 's' : ''}${failed > 0 ? ` (${failed} failed)` : ''}`);
+      fetchUsers();
+    } else {
+      toast.error('Failed to create users');
+    }
+  };
+
   const resetCreateForm = () => {
     setCreateFormData({
       username: '',
@@ -156,13 +207,22 @@ const UsersManagement = () => {
             <h1 className="text-3xl font-bold text-gray-800">Users Management</h1>
             <p className="text-gray-600 mt-1">Create and manage user accounts</p>
           </div>
-          <Button
-            variant="primary"
-            icon={<UserPlus size={20} />}
-            onClick={() => setShowCreateModal(true)}
-          >
-            Create User
-          </Button>
+          <div className="flex gap-3">
+            <Button
+              variant="outline"
+              icon={<Users size={20} />}
+              onClick={() => setShowBulkCreateModal(true)}
+            >
+              Create Bulk Users
+            </Button>
+            <Button
+              variant="primary"
+              icon={<UserPlus size={20} />}
+              onClick={() => setShowCreateModal(true)}
+            >
+              Create User
+            </Button>
+          </div>
         </div>
 
         {/* Filters */}
@@ -195,10 +255,36 @@ const UsersManagement = () => {
 
         {/* Users Table */}
         <div className="bg-white rounded-xl shadow-md overflow-hidden">
+          {/* Table Header with Bulk Delete Button */}
+          <div className="bg-gradient-to-r from-[#193869] to-[#234e92] px-6 py-4 flex items-center justify-between">
+            <h2 className="text-xl font-bold text-white flex items-center gap-2">
+              <Users size={20} />
+              Users ({pagination.total || users.length} total)
+            </h2>
+            {selectedUsers.length > 0 && (
+              <Button
+                variant="danger"
+                onClick={() => setDeleteModalUser({ bulk: true })}
+                icon={<Trash2 size={18} />}
+                className="bg-red-500 hover:bg-red-600 text-white"
+              >
+                Delete Selected ({selectedUsers.length})
+              </Button>
+            )}
+          </div>
+
           <div className="overflow-x-auto">
             <table className="w-full">
               <thead className="bg-gray-50 border-b border-gray-200">
                 <tr>
+                  <th className="px-6 py-4 text-center text-sm font-semibold text-gray-700">
+                    <input
+                      type="checkbox"
+                      checked={selectedUsers.length === users.filter(u => u.role !== 'Administrator').length && users.filter(u => u.role !== 'Administrator').length > 0}
+                      onChange={handleSelectAll}
+                      className="w-4 h-4 text-[#193869] border-gray-300 rounded focus:ring-[#193869] cursor-pointer"
+                    />
+                  </th>
                   <th className="px-6 py-4 text-left text-sm font-semibold text-gray-700">User</th>
                   <th className="px-6 py-4 text-left text-sm font-semibold text-gray-700">Role</th>
                   <th className="px-6 py-4 text-left text-sm font-semibold text-gray-700">Status</th>
@@ -213,8 +299,19 @@ const UsersManagement = () => {
                     initial={{ opacity: 0, y: 20 }}
                     animate={{ opacity: 1, y: 0 }}
                     transition={{ delay: index * 0.05 }}
-                    className="hover:bg-gray-50 transition-colors"
+                    className={`hover:bg-gray-50 transition-colors ${
+                      isUserSelected(user.id) ? 'bg-blue-50' : ''
+                    }`}
                   >
+                    <td className="px-6 py-4 text-center">
+                      <input
+                        type="checkbox"
+                        checked={isUserSelected(user.id)}
+                        onChange={() => handleSelectUser(user.id)}
+                        disabled={user.role === 'Administrator'}
+                        className="w-4 h-4 text-[#193869] border-gray-300 rounded focus:ring-[#193869] cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
+                      />
+                    </td>
                     <td className="px-6 py-4">
                       <div>
                         <p className="font-medium text-gray-800">{user.username}</p>
@@ -242,26 +339,42 @@ const UsersManagement = () => {
                     </td>
                     <td className="px-6 py-4">
                       <div className="flex items-center justify-end gap-2">
-                        <button
-                          className="p-2 text-blue-600 hover:bg-blue-50 rounded-lg transition-colors"
-                          title="View Details"
-                        >
-                          <Eye size={18} />
-                        </button>
-                        <button
-                          className="p-2 text-[#193869] hover:bg-blue-50 rounded-lg transition-colors"
-                          title="Reset Password"
-                        >
-                          <Mail size={18} />
-                        </button>
-                        <button
-                          onClick={() => setDeleteModalUser(user)}
-                          className="p-2 text-red-600 hover:bg-red-50 rounded-lg transition-colors"
-                          title="Delete User"
-                          disabled={user.role === 'Administrator'}
-                        >
-                          <Trash2 size={18} />
-                        </button>
+                        {isUserSelected(user.id) ? (
+                          // Show only delete button when selected
+                          <motion.button
+                            whileHover={{ scale: 1.1 }}
+                            whileTap={{ scale: 0.9 }}
+                            onClick={() => setDeleteModalUser(user)}
+                            className="p-2 bg-red-100 text-red-600 rounded-lg hover:bg-red-200 transition-colors"
+                            title="Delete"
+                          >
+                            <Trash2 size={18} />
+                          </motion.button>
+                        ) : (
+                          // Show all action buttons when not selected
+                          <>
+                            <button
+                              className="p-2 text-blue-600 hover:bg-blue-50 rounded-lg transition-colors"
+                              title="View Details"
+                            >
+                              <Eye size={18} />
+                            </button>
+                            <button
+                              className="p-2 text-[#193869] hover:bg-blue-50 rounded-lg transition-colors"
+                              title="Reset Password"
+                            >
+                              <Mail size={18} />
+                            </button>
+                            <button
+                              onClick={() => setDeleteModalUser(user)}
+                              className="p-2 text-red-600 hover:bg-red-50 rounded-lg transition-colors"
+                              title="Delete User"
+                              disabled={user.role === 'Administrator'}
+                            >
+                              <Trash2 size={18} />
+                            </button>
+                          </>
+                        )}
                       </div>
                     </td>
                   </motion.tr>
@@ -406,14 +519,22 @@ const UsersManagement = () => {
         <Modal
           isOpen={!!deleteModalUser}
           onClose={() => setDeleteModalUser(null)}
-          title="Delete User"
+          title={deleteModalUser?.bulk ? "Delete Selected Users" : "Delete User"}
           size="md"
         >
           <div className="space-y-4">
             <div className="bg-red-50 border border-red-200 rounded-lg p-4">
               <p className="text-red-800 font-medium mb-2">⚠️ Warning: This action cannot be undone!</p>
               <p className="text-red-700 text-sm">
-                You are about to delete user <strong>{deleteModalUser?.username}</strong>. All associated data will be permanently removed.
+                {deleteModalUser?.bulk ? (
+                  <>
+                    You are about to delete <strong>{selectedUsers.length} user(s)</strong>. All associated data will be permanently removed.
+                  </>
+                ) : (
+                  <>
+                    You are about to delete user <strong>{deleteModalUser?.username}</strong>. All associated data will be permanently removed.
+                  </>
+                )}
               </p>
             </div>
 
@@ -421,9 +542,9 @@ const UsersManagement = () => {
               <Button
                 variant="danger"
                 fullWidth
-                onClick={handleDeleteUser}
+                onClick={deleteModalUser?.bulk ? handleBulkDelete : handleDeleteUser}
               >
-                Delete User
+                {deleteModalUser?.bulk ? `Delete ${selectedUsers.length} Users` : "Delete User"}
               </Button>
               <Button
                 variant="outline"
@@ -435,6 +556,13 @@ const UsersManagement = () => {
             </div>
           </div>
         </Modal>
+
+        {/* Bulk Create Users Modal */}
+        <BulkCreateUsersModal
+          isOpen={showBulkCreateModal}
+          onClose={() => setShowBulkCreateModal(false)}
+          onSuccess={handleBulkCreateSuccess}
+        />
       </main>
     </div>
   );

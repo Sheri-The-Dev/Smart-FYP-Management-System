@@ -66,3 +66,38 @@ export const FILE_UPLOAD = {
   ALLOWED_TYPES: ['image/jpeg', 'image/jpg', 'image/png', 'image/gif', 'image/webp'],
   UPLOAD_URL: '/profile/picture'
 };
+
+// Proposal constants
+export const PROPOSAL_STATUS = {
+  DRAFT: 'draft',
+  SUBMITTED: 'submitted',
+  APPROVED: 'approved',
+  REJECTED: 'rejected',
+  REVISION_REQUESTED: 'revision_requested'
+};
+
+export const PROPOSAL_STATUS_LABELS = {
+  draft: 'Draft',
+  submitted: 'Submitted',
+  approved: 'Approved',
+  rejected: 'Rejected',
+  revision_requested: 'Revision Required'
+};
+
+export const PROPOSAL_STATUS_COLORS = {
+  draft: 'gray',
+  submitted: 'blue',
+  approved: 'green',
+  rejected: 'red',
+  revision_requested: 'orange'
+};
+
+export const PROPOSAL_VALIDATION = {
+  TITLE_MIN_LENGTH: 10,
+  TITLE_MAX_LENGTH: 500,
+  DESCRIPTION_MIN_LENGTH: 50,
+  DESCRIPTION_MAX_LENGTH: 5000,
+  MIN_MEMBERS: 1,
+  MAX_MEMBERS: 10,
+  PDF_MAX_SIZE: 10 * 1024 * 1024 // 10MB
+};

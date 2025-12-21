@@ -21,6 +21,10 @@ import AuditLogsPage from "./pages/admin/AuditLogsPage";
 import AdminProjectManagement from "./pages/admin/AdminProjectManagement";
 import ProjectArchive from "./pages/ProjectArchive";
 
+import ProposalDashboard from "./pages/ProposalDashboard";
+import SupervisorProposals from "./pages/SupervisorProposals";
+import ProposalManagement from "./pages/admin/ProposalManagement";
+
 // Protected Route Component
 const ProtectedRoute = ({ children, requireAdmin = false }) => {
   const { isAuthenticated, isAdmin, loading } = useAuth();
@@ -157,6 +161,34 @@ function App() {
         element={
           <ProtectedRoute>
             <ProjectArchive />
+          </ProtectedRoute>
+        }
+      />
+
+      {/* Proposal Routes - ADD THESE */}
+      <Route
+        path="/proposals"
+        element={
+          <ProtectedRoute>
+            <ProposalDashboard />
+          </ProtectedRoute>
+        }
+      />
+
+      <Route
+        path="/supervisor/proposals"
+        element={
+          <ProtectedRoute>
+            <SupervisorProposals />
+          </ProtectedRoute>
+        }
+      />
+
+      <Route
+        path="/admin/proposal-management"
+        element={
+          <ProtectedRoute requireAdmin>
+            <ProposalManagement />
           </ProtectedRoute>
         }
       />

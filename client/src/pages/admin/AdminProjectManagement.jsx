@@ -21,6 +21,7 @@ import {
 import Header from '../../components/layout/Header';
 import Loading from '../../components/common/Loading';
 import Button from '../../components/common/Button';
+import Modal from '../../components/common/Modal';
 import { useToast } from '../../components/common/Toast';
 import ProjectUploadModal from '../../components/projects/ProjectUploadModal';
 import BulkImportModal from '../../components/projects/BulkImportModal';
@@ -51,6 +52,7 @@ const AdminProjectManagement = () => {
   const [showDetailModal, setShowDetailModal] = useState(false);
   const [selectedProject, setSelectedProject] = useState(null);
   const [editingProject, setEditingProject] = useState(null);
+  const [deleteModalProject, setDeleteModalProject] = useState(null);
 
   // Search state
   const [searchKeyword, setSearchKeyword] = useState('');
@@ -58,6 +60,9 @@ const AdminProjectManagement = () => {
   const [filterDepartment, setFilterDepartment] = useState('');
   const [showFilters, setShowFilters] = useState(false);
   const [hasSearched, setHasSearched] = useState(false);
+
+  // Selection state
+  const [selectedProjects, setSelectedProjects] = useState([]);
 
   useEffect(() => {
     const initializePage = async () => {
@@ -165,27 +170,61 @@ const AdminProjectManagement = () => {
       setEditingProject(response);
       setShowUploadModal(true);
       
-      console.log('✅ Full project data loaded for editing:', response);
+      console.log('ÃƒÂ¢Ã…â€œÃ¢â‚¬Â¦ Full project data loaded for editing:', response);
     } catch (error) {
-      console.error('❌ Failed to load project for editing:', error);
+      console.error('ÃƒÂ¢Ã‚ÂÃ…â€™ Failed to load project for editing:', error);
       showToast(error.message || 'Failed to load project details', 'error');
     }
   };
 
-  const handleDeleteProject = async (project) => {
-    if (!window.confirm(`Are you sure you want to delete "${project.title}"?\n\nThis action cannot be undone.`)) {
-      return;
-    }
+  const handleDeleteProject = async () => {
+    if (!deleteModalProject) return;
 
     try {
-      await deleteProject(project.id);
+      await deleteProject(deleteModalProject.id);
       showToast('Project deleted successfully', 'success');
+      setDeleteModalProject(null);
       fetchProjects(pagination.page);
       fetchStats();
     } catch (error) {
       showToast(error.message || 'Failed to delete project', 'error');
     }
   };
+
+  // Checkbox selection handlers
+  const handleSelectProject = (projectId) => {
+    setSelectedProjects(prev => 
+      prev.includes(projectId) 
+        ? prev.filter(id => id !== projectId)
+        : [...prev, projectId]
+    );
+  };
+
+  const handleSelectAll = () => {
+    if (selectedProjects.length === projects.length) {
+      setSelectedProjects([]);
+    } else {
+      setSelectedProjects(projects.map(p => p.id));
+    }
+  };
+
+  const handleBulkDelete = async () => {
+    if (selectedProjects.length === 0) return;
+
+    try {
+      // Delete all selected projects
+      await Promise.all(selectedProjects.map(id => deleteProject(id)));
+      showToast(`${selectedProjects.length} project(s) deleted successfully`, 'success');
+      setSelectedProjects([]);
+      setDeleteModalProject(null);
+      fetchProjects(pagination.page);
+      fetchStats();
+    } catch (error) {
+      showToast(error.message || 'Failed to delete projects', 'error');
+    }
+  };
+
+  const isProjectSelected = (projectId) => selectedProjects.includes(projectId);
 
   const handleViewDetails = async (project) => {
     try {
@@ -198,7 +237,22 @@ const AdminProjectManagement = () => {
   };
 
   const handleModalSuccess = () => {
-    fetchProjects(pagination.page || 1);
+    // ============================================
+    // FIXED: Always refresh projects and stats after modal success
+    // If user hasn't searched yet, trigger a search to load all projects
+    // ============================================
+    console.log('✅ Modal success - refreshing data...');
+    
+    // If user has already done a search, refresh that search
+    if (hasSearched) {
+      fetchProjects(pagination.page || 1);
+    } else {
+      // If no search done yet, load all projects to show the newly added ones
+      setHasSearched(true);
+      fetchProjects(1);
+    }
+    
+    // Always refresh stats
     fetchStats();
   };
 
@@ -476,11 +530,21 @@ const AdminProjectManagement = () => {
               className="bg-white rounded-2xl shadow-lg overflow-hidden border border-gray-100"
             >
               {/* Table Header */}
-              <div className="bg-gradient-to-r from-[#193869] to-[#234e92] px-6 py-4">
+              <div className="bg-gradient-to-r from-[#193869] to-[#234e92] px-6 py-4 flex items-center justify-between">
                 <h2 className="text-xl font-bold text-white flex items-center gap-2">
                   <Database size={20} />
                   Projects ({pagination.total} total)
                 </h2>
+                {selectedProjects.length > 0 && (
+                  <Button
+                    variant="danger"
+                    onClick={() => setDeleteModalProject({ bulk: true })}
+                    icon={<Trash2 size={18} />}
+                    className="bg-red-500 hover:bg-red-600 text-white"
+                  >
+                    Delete Selected ({selectedProjects.length})
+                  </Button>
+                )}
               </div>
 
               {/* Table */}
@@ -488,6 +552,14 @@ const AdminProjectManagement = () => {
                 <table className="w-full">
                   <thead className="bg-gray-50 border-b-2 border-gray-200">
                     <tr>
+                      <th className="px-6 py-4 text-center text-sm font-semibold text-gray-700">
+                        <input
+                          type="checkbox"
+                          checked={selectedProjects.length === projects.length && projects.length > 0}
+                          onChange={handleSelectAll}
+                          className="w-4 h-4 text-[#193869] border-gray-300 rounded focus:ring-[#193869] cursor-pointer"
+                        />
+                      </th>
                       <th className="px-6 py-4 text-left text-sm font-semibold text-gray-700">Title</th>
                       <th className="px-6 py-4 text-left text-sm font-semibold text-gray-700">Year</th>
                       <th className="px-6 py-4 text-left text-sm font-semibold text-gray-700">Department</th>
@@ -502,8 +574,18 @@ const AdminProjectManagement = () => {
                         initial={{ opacity: 0, y: 20 }}
                         animate={{ opacity: 1, y: 0 }}
                         transition={{ delay: index * 0.05 }}
-                        className="hover:bg-blue-50 transition-colors"
+                        className={`hover:bg-blue-50 transition-colors ${
+                          isProjectSelected(project.id) ? 'bg-blue-50' : ''
+                        }`}
                       >
+                        <td className="px-6 py-4 text-center">
+                          <input
+                            type="checkbox"
+                            checked={isProjectSelected(project.id)}
+                            onChange={() => handleSelectProject(project.id)}
+                            className="w-4 h-4 text-[#193869] border-gray-300 rounded focus:ring-[#193869] cursor-pointer"
+                          />
+                        </td>
                         <td className="px-6 py-4">
                           <div className="max-w-xs">
                             <p className="font-semibold text-gray-800 truncate">{project.title}</p>
@@ -523,33 +605,49 @@ const AdminProjectManagement = () => {
                         </td>
                         <td className="px-6 py-4">
                           <div className="flex items-center justify-center gap-2">
-                            <motion.button
-                              whileHover={{ scale: 1.1 }}
-                              whileTap={{ scale: 0.9 }}
-                              onClick={() => handleViewDetails(project)}
-                              className="p-2 bg-blue-100 text-blue-600 rounded-lg hover:bg-blue-200 transition-colors"
-                              title="View Details"
-                            >
-                              <Eye size={18} />
-                            </motion.button>
-                            <motion.button
-                              whileHover={{ scale: 1.1 }}
-                              whileTap={{ scale: 0.9 }}
-                              onClick={() => handleEditProject(project)}
-                              className="p-2 bg-green-100 text-green-600 rounded-lg hover:bg-green-200 transition-colors"
-                              title="Edit"
-                            >
-                              <Edit size={18} />
-                            </motion.button>
-                            <motion.button
-                              whileHover={{ scale: 1.1 }}
-                              whileTap={{ scale: 0.9 }}
-                              onClick={() => handleDeleteProject(project)}
-                              className="p-2 bg-red-100 text-red-600 rounded-lg hover:bg-red-200 transition-colors"
-                              title="Delete"
-                            >
-                              <Trash2 size={18} />
-                            </motion.button>
+                            {isProjectSelected(project.id) ? (
+                              // Show only delete button when selected
+                              <motion.button
+                                whileHover={{ scale: 1.1 }}
+                                whileTap={{ scale: 0.9 }}
+                                onClick={() => setDeleteModalProject(project)}
+                                className="p-2 bg-red-100 text-red-600 rounded-lg hover:bg-red-200 transition-colors"
+                                title="Delete"
+                              >
+                                <Trash2 size={18} />
+                              </motion.button>
+                            ) : (
+                              // Show all action buttons when not selected
+                              <>
+                                <motion.button
+                                  whileHover={{ scale: 1.1 }}
+                                  whileTap={{ scale: 0.9 }}
+                                  onClick={() => handleViewDetails(project)}
+                                  className="p-2 bg-blue-100 text-blue-600 rounded-lg hover:bg-blue-200 transition-colors"
+                                  title="View Details"
+                                >
+                                  <Eye size={18} />
+                                </motion.button>
+                                <motion.button
+                                  whileHover={{ scale: 1.1 }}
+                                  whileTap={{ scale: 0.9 }}
+                                  onClick={() => handleEditProject(project)}
+                                  className="p-2 bg-green-100 text-green-600 rounded-lg hover:bg-green-200 transition-colors"
+                                  title="Edit"
+                                >
+                                  <Edit size={18} />
+                                </motion.button>
+                                <motion.button
+                                  whileHover={{ scale: 1.1 }}
+                                  whileTap={{ scale: 0.9 }}
+                                  onClick={() => setDeleteModalProject(project)}
+                                  className="p-2 bg-red-100 text-red-600 rounded-lg hover:bg-red-200 transition-colors"
+                                  title="Delete"
+                                >
+                                  <Trash2 size={18} />
+                                </motion.button>
+                              </>
+                            )}
                           </div>
                         </td>
                       </motion.tr>
@@ -718,6 +816,48 @@ const AdminProjectManagement = () => {
           setSelectedProject(null);
         }}
       />
+
+      {/* Delete Confirmation Modal */}
+      <Modal
+        isOpen={!!deleteModalProject}
+        onClose={() => setDeleteModalProject(null)}
+        title={deleteModalProject?.bulk ? "Delete Selected Projects" : "Delete Project"}
+        size="md"
+      >
+        <div className="space-y-4">
+          <div className="bg-red-50 border border-red-200 rounded-lg p-4">
+            <p className="text-red-800 font-medium mb-2">Ã¢Å¡Â Ã¯Â¸Â Warning: This action cannot be undone!</p>
+            <p className="text-red-700 text-sm">
+              {deleteModalProject?.bulk ? (
+                <>
+                  You are about to delete <strong>{selectedProjects.length} project(s)</strong>. All associated data will be permanently removed.
+                </>
+              ) : (
+                <>
+                  You are about to delete project <strong>{deleteModalProject?.title}</strong>. All associated data will be permanently removed.
+                </>
+              )}
+            </p>
+          </div>
+
+          <div className="flex gap-3">
+            <Button
+              variant="danger"
+              fullWidth
+              onClick={deleteModalProject?.bulk ? handleBulkDelete : handleDeleteProject}
+            >
+              {deleteModalProject?.bulk ? `Delete ${selectedProjects.length} Projects` : "Delete Project"}
+            </Button>
+            <Button
+              variant="outline"
+              fullWidth
+              onClick={() => setDeleteModalProject(null)}
+            >
+              Cancel
+            </Button>
+          </div>
+        </div>
+      </Modal>
     </div>
   );
 };

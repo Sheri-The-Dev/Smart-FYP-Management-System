@@ -9,8 +9,8 @@ if (!fs.existsSync(uploadDir)) {
   console.log('✅ Uploads directory created');
 }
 
-// Configure storage
-const storage = multer.diskStorage({
+// Configure storage for profile pictures
+const profileStorage = multer.diskStorage({
   destination: function (req, file, cb) {
     cb(null, uploadDir);
   },
@@ -23,8 +23,20 @@ const storage = multer.diskStorage({
   }
 });
 
-// File filter - only allow images
-const fileFilter = (req, file, cb) => {
+// Configure storage for CSV files
+const csvStorage = multer.diskStorage({
+  destination: function (req, file, cb) {
+    cb(null, uploadDir);
+  },
+  filename: function (req, file, cb) {
+    const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1E9);
+    const adminId = req.user?.id || 'unknown';
+    cb(null, `bulk_users_${adminId}_${uniqueSuffix}.csv`);
+  }
+});
+
+// File filter for profile pictures - only allow images
+const imageFileFilter = (req, file, cb) => {
   const allowedTypes = ['image/jpeg', 'image/jpg', 'image/png', 'image/gif', 'image/webp'];
   
   if (allowedTypes.includes(file.mimetype)) {
@@ -34,10 +46,28 @@ const fileFilter = (req, file, cb) => {
   }
 };
 
-// Create multer upload instance
+// File filter for CSV files
+const csvFileFilter = (req, file, cb) => {
+  if (file.mimetype === 'text/csv' || file.originalname.endsWith('.csv')) {
+    cb(null, true);
+  } else {
+    cb(new Error('Invalid file type. Only CSV files are allowed.'), false);
+  }
+};
+
+// Create multer upload instance for profile pictures
 const upload = multer({
-  storage: storage,
-  fileFilter: fileFilter,
+  storage: profileStorage,
+  fileFilter: imageFileFilter,
+  limits: {
+    fileSize: 5 * 1024 * 1024 // 5MB max file size
+  }
+});
+
+// Create multer upload instance for CSV files
+const uploadCSV = multer({
+  storage: csvStorage,
+  fileFilter: csvFileFilter,
   limits: {
     fileSize: 5 * 1024 * 1024 // 5MB max file size
   }
@@ -80,8 +110,42 @@ const deleteOldProfilePicture = (filename) => {
   });
 };
 
+const pdfStorage = multer.diskStorage({
+  destination: (req, file, cb) => {
+    const uploadDir = path.join(__dirname, '../../uploads/proposals');
+    
+    if (!fs.existsSync(uploadDir)) {
+      fs.mkdirSync(uploadDir, { recursive: true });
+    }
+    
+    cb(null, uploadDir);
+  },
+  filename: (req, file, cb) => {
+    const uniqueSuffix = `${Date.now()}-${Math.round(Math.random() * 1E9)}`;
+    cb(null, `proposal-${uniqueSuffix}.pdf`);
+  }
+});
+
+const pdfFilter = (req, file, cb) => {
+  if (file.mimetype === 'application/pdf') {
+    cb(null, true);
+  } else {
+    cb(new Error('Only PDF files are allowed'), false);
+  }
+};
+
+const uploadProposalPDF = multer({
+  storage: pdfStorage,
+  fileFilter: pdfFilter,
+  limits: {
+    fileSize: 10 * 1024 * 1024 // 10MB
+  }
+});
+
 module.exports = {
   upload,
+  uploadCSV,
   handleUploadError,
-  deleteOldProfilePicture
+  deleteOldProfilePicture,
+  uploadProposalPDF
 };

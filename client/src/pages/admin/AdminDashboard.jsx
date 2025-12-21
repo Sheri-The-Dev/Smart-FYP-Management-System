@@ -147,6 +147,37 @@ const AdminDashboard = () => {
           </div>
         </motion.div>
 
+         {/* ADD PROPOSAL STATS WIDGET HERE */}
+        <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.15 }}
+          className="bg-white rounded-xl shadow-md p-6 mb-8"
+        >
+          <div className="flex items-center justify-between mb-6">
+            <h2 className="text-xl font-bold text-gray-800">Proposal Management</h2>
+            <button
+              onClick={() => navigate('/admin/proposal-management')}
+              className="text-sm text-[#193869] hover:text-[#234e92] font-medium flex items-center gap-1"
+            >
+              View All
+              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+              </svg>
+            </button>
+          </div>
+          <p className="text-sm text-gray-600 mb-4">
+            Manage student proposals, templates, and supervisor assignments
+          </p>
+          <Button
+            variant="primary"
+            onClick={() => navigate('/admin/proposal-management')}
+            className="w-full sm:w-auto"
+          >
+            Go to Proposal Management
+          </Button>
+        </motion.div>
+
         {/* Users by Role */}
         <motion.div
           initial={{ opacity: 0, y: 20 }}

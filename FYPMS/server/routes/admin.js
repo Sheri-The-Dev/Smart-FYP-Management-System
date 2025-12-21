@@ -12,10 +12,12 @@ const {
   verifySecurityAnswers,
   completePasswordReset,
   getAuditLogs,
-  getDashboardStats
+  getDashboardStats,
+  bulkCreateUsers
 } = require('../controllers/adminController');
 const { authenticate, isAdmin } = require('../middleware/auth');
 const { validationRules, validate } = require('../middleware/validation');
+const { uploadCSV, handleUploadError } = require('../middleware/upload');
 
 // All admin routes require authentication and admin role
 router.use(authenticate);
@@ -23,6 +25,7 @@ router.use(isAdmin);
 
 // User management
 router.post('/users', validationRules.createUser, validate, createUser);
+router.post('/users/bulk-create', uploadCSV.single('csvFile'), handleUploadError, bulkCreateUsers);
 router.get('/users', getAllUsers);
 router.get('/users/:id', getUserById);
 router.put('/users/:id', updateUser);

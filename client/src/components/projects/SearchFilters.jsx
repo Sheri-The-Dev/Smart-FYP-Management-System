@@ -118,7 +118,7 @@ const SearchFilters = ({ onSearch, onReset }) => {
           className="px-6 py-3 bg-white border-2 border-[#193869] text-[#193869] rounded-lg font-medium hover:bg-gray-50 transition-all flex items-center gap-2"
         >
           <Filter className="w-4 h-4" />
-          <span>Filters</span>
+          <span>Advanced Search</span>
           {activeFilterCount > 0 && (
             <span className="bg-[#d29538] text-white text-xs px-2 py-0.5 rounded-full">
               {activeFilterCount}
@@ -137,11 +137,11 @@ const SearchFilters = ({ onSearch, onReset }) => {
       <AnimatePresence>
         {showAdvanced && (
           <motion.div
-            initial={{ height: 0, opacity: 0 }}
-            animate={{ height: 'auto', opacity: 1 }}
-            exit={{ height: 0, opacity: 0 }}
-            transition={{ duration: 0.3 }}
-            className="overflow-hidden"
+            initial={{ opacity: 0, height: 0 }}
+            animate={{ opacity: 1, height: 'auto' }}
+            exit={{ opacity: 0, height: 0 }}
+            transition={{ duration: 0.3, ease: 'easeInOut' }}
+            style={{ overflow: 'hidden' }}
           >
             <div className="pt-4 border-t border-gray-200">
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 mb-4">

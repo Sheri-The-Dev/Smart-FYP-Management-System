@@ -9,7 +9,8 @@ import {
   Lock,
   User as UserIcon,
   FolderOpen,
-  Search
+  Search,
+  FileText
 } from 'lucide-react';
 import { useAuth } from '../hooks/useAuth';
 import Header from '../components/layout/Header';
@@ -121,6 +122,52 @@ const Dashboard = () => {
               <span>Advanced search available</span>
             </div>
           </motion.button>
+
+          {/* SUBMIT PROPOSAL - Students only */}
+          {user?.role === 'Student' && (
+            <motion.button
+              whileHover={{ scale: 1.02, y: -5 }}
+              whileTap={{ scale: 0.98 }}
+              onClick={() => navigate('/proposals')}
+              className="bg-white hover:bg-gray-50 rounded-xl shadow-md p-8 text-left transition-all duration-300 border-2 border-transparent hover:border-[#d29538]"
+            >
+              <div className="flex items-center gap-4 mb-4">
+                <div className="w-14 h-14 bg-[#d29538] rounded-lg flex items-center justify-center">
+                  <FileText className="w-8 h-8 text-white" />
+                </div>
+                <div>
+                  <h3 className="text-xl font-bold text-gray-800">Submit Proposal</h3>
+                  <p className="text-gray-500 text-sm">FYP Proposal</p>
+                </div>
+              </div>
+              <p className="text-gray-600 text-sm leading-relaxed">
+                Create and submit your Final Year Project proposal for supervisor review
+              </p>
+            </motion.button>
+          )}
+
+          {/* REVIEW PROPOSALS - Teachers only */}
+          {user?.role === 'Teacher' && (
+            <motion.button
+              whileHover={{ scale: 1.02, y: -5 }}
+              whileTap={{ scale: 0.98 }}
+              onClick={() => navigate('/supervisor/proposals')}
+              className="bg-white hover:bg-gray-50 rounded-xl shadow-md p-8 text-left transition-all duration-300 border-2 border-transparent hover:border-[#d29538]"
+            >
+              <div className="flex items-center gap-4 mb-4">
+                <div className="w-14 h-14 bg-[#234e92] rounded-lg flex items-center justify-center">
+                  <FileText className="w-8 h-8 text-white" />
+                </div>
+                <div>
+                  <h3 className="text-xl font-bold text-gray-800">Review Proposals</h3>
+                  <p className="text-gray-500 text-sm">Assigned to You</p>
+                </div>
+              </div>
+              <p className="text-gray-600 text-sm leading-relaxed">
+                Review and provide feedback on student proposals assigned to you
+              </p>
+            </motion.button>
+          )}
 
           {/* VIEW PROFILE */}
           <motion.button

@@ -186,9 +186,157 @@ const sendPasswordChangedEmail = async (email, username) => {
   }
 };
 
+// Proposal submitted to supervisor
+const sendProposalSubmittedEmail = async (supervisorEmail, supervisorName, studentName, projectTitle, proposalId) => {
+  const proposalUrl = `${process.env.FRONTEND_URL}/supervisor/proposals`;
+  
+  const content = `
+    <h2>New Proposal Submitted for Review</h2>
+    <p>Hello <strong>${supervisorName}</strong>,</p>
+    <p>A student has submitted a Final Year Project proposal for your review.</p>
+    <h3>Proposal Details:</h3>
+    <ul>
+      <li><strong>Student:</strong> ${studentName}</li>
+      <li><strong>Project Title:</strong> ${projectTitle}</li>
+      <li><strong>Proposal ID:</strong> #${proposalId}</li>
+    </ul>
+    <a href="${proposalUrl}" class="button">Review Proposal</a>
+    <p>Please review the proposal at your earliest convenience.</p>
+  `;
+
+  const mailOptions = {
+    from: process.env.EMAIL_FROM,
+    to: supervisorEmail,
+    subject: `New Proposal Submitted: ${projectTitle}`,
+    html: emailTemplate(content)
+  };
+
+  try {
+    await transporter.sendMail(mailOptions);
+    return true;
+  } catch (error) {
+    console.error('Email send error:', error);
+    return false;
+  }
+};
+
+// Proposal approved
+const sendProposalApprovedEmail = async (studentEmail, studentName, projectTitle, supervisorName) => {
+  const dashboardUrl = `${process.env.FRONTEND_URL}/proposals`;
+  
+  const content = `
+    <h2>🎉 Your Proposal Has Been Approved!</h2>
+    <p>Hello <strong>${studentName}</strong>,</p>
+    <p>Great news! Your Final Year Project proposal has been approved by your supervisor.</p>
+    <h3>Proposal Details:</h3>
+    <ul>
+      <li><strong>Project Title:</strong> ${projectTitle}</li>
+      <li><strong>Supervisor:</strong> ${supervisorName}</li>
+      <li><strong>Status:</strong> <span style="color: green; font-weight: bold;">Approved</span></li>
+    </ul>
+    <a href="${dashboardUrl}" class="button">View Dashboard</a>
+    <p>You can now proceed with your project. Best of luck!</p>
+  `;
+
+  const mailOptions = {
+    from: process.env.EMAIL_FROM,
+    to: studentEmail,
+    subject: `Proposal Approved: ${projectTitle}`,
+    html: emailTemplate(content)
+  };
+
+  try {
+    await transporter.sendMail(mailOptions);
+    return true;
+  } catch (error) {
+    console.error('Email send error:', error);
+    return false;
+  }
+};
+
+// Proposal rejected
+const sendProposalRejectedEmail = async (studentEmail, studentName, projectTitle, supervisorName, feedback) => {
+  const dashboardUrl = `${process.env.FRONTEND_URL}/proposals`;
+  
+  const content = `
+    <h2>Proposal Review Decision</h2>
+    <p>Hello <strong>${studentName}</strong>,</p>
+    <p>Your supervisor has reviewed your Final Year Project proposal.</p>
+    <h3>Proposal Details:</h3>
+    <ul>
+      <li><strong>Project Title:</strong> ${projectTitle}</li>
+      <li><strong>Supervisor:</strong> ${supervisorName}</li>
+      <li><strong>Status:</strong> <span style="color: red; font-weight: bold;">Rejected</span></li>
+    </ul>
+    <h3>Supervisor Feedback:</h3>
+    <div style="background: #f8f9fa; padding: 15px; border-left: 4px solid #dc3545; margin: 20px 0;">
+      <p style="margin: 0; white-space: pre-line;">${feedback}</p>
+    </div>
+    <a href="${dashboardUrl}" class="button">View Dashboard</a>
+    <p>Please review the feedback carefully. You may consider revising your proposal and resubmitting with a new topic.</p>
+  `;
+
+  const mailOptions = {
+    from: process.env.EMAIL_FROM,
+    to: studentEmail,
+    subject: `Proposal Decision: ${projectTitle}`,
+    html: emailTemplate(content)
+  };
+
+  try {
+    await transporter.sendMail(mailOptions);
+    return true;
+  } catch (error) {
+    console.error('Email send error:', error);
+    return false;
+  }
+};
+
+// Revision requested
+const sendRevisionRequestedEmail = async (studentEmail, studentName, projectTitle, supervisorName, feedback) => {
+  const dashboardUrl = `${process.env.FRONTEND_URL}/proposals`;
+  
+  const content = `
+    <h2>Proposal Revision Required</h2>
+    <p>Hello <strong>${studentName}</strong>,</p>
+    <p>Your supervisor has reviewed your proposal and requested some revisions.</p>
+    <h3>Proposal Details:</h3>
+    <ul>
+      <li><strong>Project Title:</strong> ${projectTitle}</li>
+      <li><strong>Supervisor:</strong> ${supervisorName}</li>
+      <li><strong>Status:</strong> <span style="color: orange; font-weight: bold;">Revision Required</span></li>
+    </ul>
+    <h3>Supervisor Feedback:</h3>
+    <div style="background: #fff3cd; padding: 15px; border-left: 4px solid #d29538; margin: 20px 0;">
+      <p style="margin: 0; white-space: pre-line;">${feedback}</p>
+    </div>
+    <a href="${dashboardUrl}" class="button">Revise Proposal</a>
+    <p>Please address the feedback and resubmit your revised proposal.</p>
+  `;
+
+  const mailOptions = {
+    from: process.env.EMAIL_FROM,
+    to: studentEmail,
+    subject: `Revision Required: ${projectTitle}`,
+    html: emailTemplate(content)
+  };
+
+  try {
+    await transporter.sendMail(mailOptions);
+    return true;
+  } catch (error) {
+    console.error('Email send error:', error);
+    return false;
+  }
+};
+
 module.exports = {
   sendPasswordResetEmail,
   sendAccountCreationEmail,
   sendSecurityChallengeEmail,
-  sendPasswordChangedEmail
+  sendPasswordChangedEmail,
+  sendProposalSubmittedEmail,
+  sendProposalApprovedEmail,
+  sendProposalRejectedEmail,
+  sendRevisionRequestedEmail
 };

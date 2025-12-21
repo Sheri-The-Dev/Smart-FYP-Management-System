@@ -14,6 +14,7 @@ const authRoutes = require('./routes/auth');
 const adminRoutes = require('./routes/admin');
 const profileRoutes = require('./routes/profile');
 const projectRoutes = require('./routes/project');
+const proposalRoutes = require('./routes/proposal');
 
 const app = express();
 const PORT = process.env.PORT || 5000;
@@ -120,6 +121,7 @@ app.use('/api/auth', authRoutes);
 app.use('/api/admin', adminRoutes);
 app.use('/api/profile', profileRoutes);
 app.use('/api/projects', projectRoutes);
+app.use('/api/proposals', proposalRoutes);
 
 // ============================================
 // 404 HANDLER

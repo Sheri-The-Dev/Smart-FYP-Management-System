@@ -46,46 +46,95 @@ const BulkImportModal = ({ isOpen, onClose, onSuccess }) => {
         return;
       }
 
-      // Import projects
+      console.log(`📤 Uploading ${projects.length} projects...`);
+
+      // Import projects - this returns the full axios response
       const response = await bulkImportProjects(projects);
       
-      // Debug logging
-      console.log('Bulk import response:', response);
-      console.log('Response type:', typeof response);
-      console.log('Response.success:', response?.success);
-      console.log('Response.data:', response?.data);
+      console.log('✅ Bulk import response received:', response);
       
-      // Simple validation - just check if we have data
-      if (!response || !response.data || typeof response.data.total === 'undefined') {
-        console.error('Invalid response structure:', response);
-        throw new Error('Invalid response from server');
+      // ============================================
+      // FIXED: Correct response structure handling
+      // Backend returns: { success: true, message: "...", data: { total, successful, failed, errors } }
+      // projectService.js extracts response.data which contains the full response object
+      // So response = { success: true, message: "...", data: { ... } }
+      // ============================================
+      
+      // Check if response is valid
+      if (!response) {
+        throw new Error('No response received from server');
+      }
+
+      // Check for success flag
+      if (!response.success) {
+        throw new Error(response.message || 'Server returned error status');
       }
       
+      // Extract the actual results - response.data contains the results
       const results = response.data;
+      
+      if (!results) {
+        console.error('Response structure:', response);
+        throw new Error('Invalid response structure from server');
+      }
+      
+      // Validate that results has the required fields
+      if (typeof results.total === 'undefined' || 
+          typeof results.successful === 'undefined' || 
+          typeof results.failed === 'undefined') {
+        console.error('Missing required fields in results:', results);
+        console.error('Full response:', response);
+        throw new Error('Invalid data structure in server response');
+      }
+      
+      console.log(`📊 Import results: ${results.successful}/${results.total} successful, ${results.failed} failed`);
+      
+      // Set results for display
       setImportResults(results);
       
+      // Show appropriate notifications
       if (results.successful > 0) {
         showToast(
-          `Successfully imported ${results.successful} project(s)`,
+          `Successfully imported ${results.successful} of ${results.total} project(s)`,
           'success'
         );
+        
+        // ============================================
+        // CRITICAL: Call onSuccess to trigger refresh
+        // This will update the project list in real-time
+        // ============================================
         onSuccess();
       }
       
       if (results.failed > 0) {
         showToast(
-          `${results.failed} project(s) failed to import`,
+          `${results.failed} project(s) failed to import. Check details below.`,
           'warning'
         );
       }
       
       // If no projects were imported at all
-      if (results.successful === 0 && results.failed === 0) {
-        showToast('No projects were imported', 'warning');
+      if (results.successful === 0 && results.total > 0) {
+        showToast('No projects were imported successfully', 'error');
       }
+      
     } catch (error) {
-      console.error('Bulk import error:', error);
-      showToast(error.message || 'Failed to import projects', 'error');
+      console.error('❌ Bulk import error:', error);
+      console.error('Error details:', {
+        message: error.message,
+        response: error.response,
+        stack: error.stack
+      });
+      
+      // Better error messaging
+      let errorMessage = 'Failed to import projects';
+      if (error.message) {
+        errorMessage = error.message;
+      } else if (error.response?.data?.message) {
+        errorMessage = error.response.data.message;
+      }
+      
+      showToast(errorMessage, 'error');
     } finally {
       setLoading(false);
     }

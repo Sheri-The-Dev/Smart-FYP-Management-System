@@ -24,6 +24,48 @@ const ProjectArchive = () => {
   const [currentFilters, setCurrentFilters] = useState(null);
   const [hasSearched, setHasSearched] = useState(false);
 
+  // Auto-load all projects on component mount (like AdminProjectManagement)
+  useEffect(() => {
+    handleLoadAll();
+  }, []);
+
+  // Handle load all projects
+  const handleLoadAll = async (page = 1) => {
+    setLoading(true);
+    setHasSearched(true);
+    try {
+      // Empty filters object to load all projects
+      const response = await searchProjects({
+        page,
+        limit: pagination.limit
+      });
+
+      // Handle the response structure correctly
+      const projectsData = response.projects || [];
+      const paginationData = response.pagination || {
+        total: 0,
+        page: 1,
+        limit: pagination.limit,
+        totalPages: 0
+      };
+
+      setProjects(projectsData);
+      setPagination(paginationData);
+      setCurrentFilters({});
+
+      if (projectsData.length === 0) {
+        showToast('No projects available in the archive', 'info');
+      } else {
+        showToast(`Loaded ${paginationData.total} project${paginationData.total !== 1 ? 's' : ''}`, 'success');
+      }
+    } catch (error) {
+      console.error('Load all projects error:', error);
+      showToast(error.message || 'Failed to load projects', 'error');
+    } finally {
+      setLoading(false);
+    }
+  };
+
   // Handle search
   const handleSearch = async (filters, page = 1) => {
     setLoading(true);
@@ -35,14 +77,24 @@ const ProjectArchive = () => {
         limit: pagination.limit
       });
 
-      setProjects(response.projects);
-      setPagination(response.pagination);
+      // Handle the response structure correctly
+      const projectsData = response.projects || [];
+      const paginationData = response.pagination || {
+        total: 0,
+        page: 1,
+        limit: pagination.limit,
+        totalPages: 0
+      };
+
+      setProjects(projectsData);
+      setPagination(paginationData);
       setCurrentFilters(filters);
 
-      if (response.projects.length === 0) {
+      if (projectsData.length === 0) {
         showToast('No projects found matching your criteria', 'info');
       }
     } catch (error) {
+      console.error('Search projects error:', error);
       showToast(error.message || 'Failed to search projects', 'error');
     } finally {
       setLoading(false);
@@ -62,8 +114,13 @@ const ProjectArchive = () => {
 
   // Handle pagination
   const handlePageChange = (newPage) => {
-    if (currentFilters) {
-      handleSearch(currentFilters, newPage);
+    if (currentFilters !== null) {
+      // Check if it's a "load all" scenario (empty filters object)
+      if (Object.keys(currentFilters).length === 0) {
+        handleLoadAll(newPage);
+      } else {
+        handleSearch(currentFilters, newPage);
+      }
       window.scrollTo({ top: 0, behavior: 'smooth' });
     }
   };
@@ -79,6 +136,8 @@ const ProjectArchive = () => {
     });
     setCurrentFilters(null);
     setHasSearched(false);
+    // Reload all projects after reset
+    handleLoadAll();
   };
 
   return (
@@ -109,11 +168,14 @@ const ProjectArchive = () => {
         </motion.div>
 
         {/* Search Filters */}
-        <SearchFilters onSearch={handleSearch} onReset={handleReset} />
+        <SearchFilters 
+          onSearch={handleSearch} 
+          onReset={handleReset}
+        />
 
         {/* Results Section */}
         {loading ? (
-          <Loading text="Searching projects..." />
+          <Loading text="Loading projects..." />
         ) : hasSearched ? (
           <>
             {/* Results Header */}
@@ -228,7 +290,7 @@ const ProjectArchive = () => {
             )}
           </>
         ) : (
-          /* Initial State - Before Search */
+          /* Initial State - Should not normally show since auto-load happens on mount */
           <motion.div
             initial={{ opacity: 0, scale: 0.95 }}
             animate={{ opacity: 1, scale: 1 }}
@@ -238,10 +300,10 @@ const ProjectArchive = () => {
               <Search className="w-10 h-10 text-white" />
             </div>
             <h3 className="text-xl font-semibold text-gray-700 mb-2">
-              Start Your Search
+              Loading Projects...
             </h3>
-            <p className="text-gray-500">
-              Enter keywords or use filters to find archived projects
+            <p className="text-gray-500 mb-4">
+              Please wait while we fetch all archived projects
             </p>
           </motion.div>
         )}

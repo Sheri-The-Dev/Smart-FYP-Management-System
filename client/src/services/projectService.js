@@ -7,6 +7,7 @@ export const searchProjects = async (filters) => {
   try {
     const params = new URLSearchParams();
     
+    // Only add parameters if they have values
     if (filters.keyword) params.append('keyword', filters.keyword);
     if (filters.supervisor) params.append('supervisor', filters.supervisor);
     if (filters.year) params.append('year', filters.year);
@@ -14,11 +15,16 @@ export const searchProjects = async (filters) => {
     if (filters.technology) params.append('technology', filters.technology);
     if (filters.grade) params.append('grade', filters.grade);
     if (filters.operator) params.append('operator', filters.operator);
-    if (filters.page) params.append('page', filters.page);
-    if (filters.limit) params.append('limit', filters.limit);
     if (filters.sortBy) params.append('sortBy', filters.sortBy);
+    
+    // Always include pagination parameters
+    params.append('page', filters.page || 1);
+    params.append('limit', filters.limit || 10);
 
     const response = await api.get(`/projects/search?${params.toString()}`);
+    
+    // API interceptor returns response.data which is { success, data: { projects, pagination } }
+    // So we need to return response.data (which contains projects and pagination)
     return response.data;
   } catch (error) {
     throw error.response?.data || { message: 'Failed to search projects' };
@@ -31,6 +37,8 @@ export const searchProjects = async (filters) => {
 export const getProjectDetails = async (projectId) => {
   try {
     const response = await api.get(`/projects/${projectId}`);
+    // API interceptor returns response.data which is { success, data: projectObject }
+    // So we need to return response.data (the actual project object)
     return response.data;
   } catch (error) {
     throw error.response?.data || { message: 'Failed to get project details' };
@@ -43,7 +51,9 @@ export const getProjectDetails = async (projectId) => {
 export const getFilterOptions = async () => {
   try {
     const response = await api.get('/projects/filters/options');
-    return response.data;
+    // API interceptor returns response.data which is { success, data: { years, departments, ... } }
+    // So we need to return response (which contains data property)
+    return response;
   } catch (error) {
     throw error.response?.data || { message: 'Failed to get filter options' };
   }
@@ -90,10 +100,13 @@ export const deleteProject = async (projectId) => {
 // ============================================
 export const bulkImportProjects = async (projects) => {
   try {
+    // API interceptor returns response.data which is { success, message, data }
+    // Then we return response.data to get just the 'data' property
+    // This makes it consistent with other service methods
     const response = await api.post('/projects/bulk-import', { projects });
-    return response.data;
+    return response; // Return full response to access both success flag and data
   } catch (error) {
-    throw error.response?.data || { message: 'Failed to import projects' };
+    throw error;
   }
 };
 
