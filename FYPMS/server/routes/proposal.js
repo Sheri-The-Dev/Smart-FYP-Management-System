@@ -6,7 +6,7 @@ const { uploadProposalPDF } = require('../middleware/upload');
 const { proposalValidation } = require('../middleware/proposalValidation');
 
 // ============================================
-// STUDENT ROUTES
+// STUDENT ROUTES 
 // ============================================
 
 // Create new proposal (draft)
