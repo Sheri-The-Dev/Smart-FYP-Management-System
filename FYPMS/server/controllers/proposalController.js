@@ -40,9 +40,9 @@ exports.createProposal = async (req, res) => {
       const member = members[i];
       await connection.execute(
         `INSERT INTO proposal_members 
-         (proposal_id, sap_id, email, phone_number, display_order) 
-         VALUES (?, ?, ?, ?, ?)`,
-        [proposalId, member.sap_id, member.email, member.phone_number || null, i]
+         (proposal_id, sap_id, email, phone_number, department, display_order) 
+         VALUES (?, ?, ?, ?, ?, ?)`,
+        [proposalId, member.sap_id, member.email, member.phone_number || null, member.department || null, i]
       );
     }
 
@@ -165,7 +165,7 @@ exports.getProposalDetails = async (req, res) => {
 
     // Get group members
     const [members] = await connection.execute(
-      `SELECT sap_id, email, phone_number, display_order
+      `SELECT sap_id, email, phone_number, department, display_order
        FROM proposal_members
        WHERE proposal_id = ?
        ORDER BY display_order`,
@@ -278,9 +278,9 @@ exports.updateProposal = async (req, res) => {
         const member = members[i];
         await connection.execute(
           `INSERT INTO proposal_members 
-           (proposal_id, sap_id, email, phone_number, display_order) 
-           VALUES (?, ?, ?, ?, ?)`,
-          [id, member.sap_id, member.email, member.phone_number || null, i]
+           (proposal_id, sap_id, email, phone_number, department, display_order) 
+           VALUES (?, ?, ?, ?, ?, ?)`,
+          [id, member.sap_id, member.email, member.phone_number || null, member.department || null, i]
         );
       }
     }
@@ -470,12 +470,6 @@ exports.submitProposal = async (req, res) => {
        SET status = 'submitted', submission_date = NOW() 
        WHERE id = ?`,
       [id]
-    );
-
-    // Increment supervisor workload
-    await connection.execute(
-      'UPDATE users SET current_supervisees = current_supervisees + 1 WHERE id = ?',
-      [proposalData.supervisor_id]
     );
 
     // Log activity
@@ -697,6 +691,12 @@ exports.approveProposal = async (req, res) => {
       [id]
     );
 
+    // Increment supervisor workload
+    await connection.execute(
+      'UPDATE users SET current_supervisees = current_supervisees + 1 WHERE id = ?',
+      [proposalData.supervisor_id]
+    );
+
     // Log activity
     await logProposalActivity(connection, {
       proposalId: id,
@@ -792,12 +792,6 @@ exports.rejectProposal = async (req, res) => {
            response_date = NOW() 
        WHERE id = ?`,
       [feedback, id]
-    );
-
-    // Decrement supervisor workload
-    await connection.execute(
-      'UPDATE users SET current_supervisees = GREATEST(current_supervisees - 1, 0) WHERE id = ?',
-      [supervisorId]
     );
 
     // Log activity
@@ -951,13 +945,16 @@ exports.getAvailableSupervisors = async (req, res) => {
         id,
         username,
         email,
+        department,
         max_supervisees,
         current_supervisees,
         is_accepting_proposals,
+        availability_status,
         (max_supervisees - current_supervisees) as available_slots
        FROM users
        WHERE role = 'Teacher' 
        AND is_active = 1
+       AND (availability_status IS NULL OR availability_status != 'Unavailable')
        ORDER BY username`
     );
 
@@ -1328,9 +1325,12 @@ exports.getProposalAnalytics = async (req, res) => {
     // Supervisor workload
     const [supervisorWorkload] = await connection.execute(
       `SELECT 
+        id,
         username,
-        current_supervisees,
+        email,
+        department,
         max_supervisees,
+        current_supervisees,
         is_accepting_proposals,
         (max_supervisees - current_supervisees) as available_slots
        FROM users
