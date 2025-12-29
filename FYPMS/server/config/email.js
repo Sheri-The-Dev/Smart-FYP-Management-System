@@ -4,7 +4,7 @@ require('dotenv').config();
 // Create reusable transporter
 const transporter = nodemailer.createTransport({
   host: process.env.EMAIL_HOST,
-  port: process.env.EMAIL_PORT,
+  port: Number(process.env.EMAIL_PORT),
   secure: process.env.EMAIL_SECURE === 'true',
   auth: {
     user: process.env.EMAIL_USER,
@@ -19,7 +19,7 @@ const transporter = nodemailer.createTransport({
 const verifyEmailConfig = async () => {
   try {
     await transporter.verify();
-    console.log('✅ Email server is ready to send messages');
+    console.log('✅ Email server is ready');
     return true;
   } catch (error) {
     console.error('❌ Email configuration error:', error.message);
