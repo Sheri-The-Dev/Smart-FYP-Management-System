@@ -5,8 +5,12 @@ const { query } = require('../config/database');
 const authenticate = async (req, res, next) => {
   try {
     // Get token from header or cookie
-    const token = req.headers.authorization?.replace('Bearer ', '') || 
-                  req.cookies?.token;
+    const authHeader = req.headers.authorization;
+    const token =
+      (authHeader && authHeader.startsWith('Bearer ')
+        ? authHeader.slice(7).trim()
+        : null) ||
+      req.cookies?.token;
 
     if (!token) {
       return res.status(401).json({
@@ -17,7 +21,7 @@ const authenticate = async (req, res, next) => {
 
     // Verify token
     const decoded = verifyJWT(token);
-    if (!decoded) {
+    if (!decoded || !decoded.id) {
       return res.status(401).json({
         success: false,
         message: 'Invalid or expired token.'
@@ -26,12 +30,12 @@ const authenticate = async (req, res, next) => {
 
     // Check if session exists and is valid
     const sessionSql = `
-      SELECT s.*, u.is_active 
+      SELECT s.*, u.is_active
       FROM sessions s
       JOIN users u ON s.user_id = u.id
       WHERE s.token = ? AND s.expires_at > NOW()
     `;
-    
+
     const [session] = await query(sessionSql, [token]);
 
     if (!session) {
@@ -67,41 +71,40 @@ const authenticate = async (req, res, next) => {
 };
 
 // Check if user has required role
-const authorize = (...allowedRoles) => {
-  return (req, res, next) => {
-    if (!req.user) {
-      return res.status(401).json({
-        success: false,
-        message: 'Authentication required.'
-      });
-    }
+const authorize = (...allowedRoles) => (req, res, next) => {
+  if (!req.user) {
+    return res.status(401).json({
+      success: false,
+      message: 'Authentication required.'
+    });
+  }
 
-    if (!allowedRoles.includes(req.user.role)) {
-      return res.status(403).json({
-        success: false,
-        message: 'Access denied. Insufficient permissions.'
-      });
-    }
+  if (!allowedRoles.includes(req.user.role)) {
+    return res.status(403).json({
+      success: false,
+      message: 'Access denied. Insufficient permissions.'
+    });
+  }
 
-    next();
-  };
+  next();
 };
 
 // Check if user is administrator
 const isAdmin = authorize('Administrator');
 
+// Check if user is supervisor (Teacher)
 const requireSupervisor = (req, res, next) => {
   if (!req.user) {
     return res.status(401).json({
       success: false,
-      message: 'Authentication required'
+      message: 'Authentication required.'
     });
   }
 
   if (req.user.role !== 'Teacher') {
     return res.status(403).json({
       success: false,
-      message: 'Supervisor access required'
+      message: 'Supervisor access required.'
     });
   }
 
