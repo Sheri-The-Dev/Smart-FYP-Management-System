@@ -308,4 +308,4 @@ const UserTable = ({ users, onUpdate, currentUserId }) => {
   );
 };
 
-export default UserTable;
+export default UserTable; 
