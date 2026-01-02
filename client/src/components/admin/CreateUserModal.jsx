@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { motion } from 'framer-motion';
 import Modal from '../common/Modal';
 import Input from '../common/Input';
 import Button from '../common/Button';
@@ -6,8 +7,8 @@ import PasswordStrength from '../common/PasswordStrength';
 import { useToast } from '../common/Toast';
 import { createUser } from '../../services/adminService';
 import { validatePassword, isValidEmail, isValidUsername } from '../../utils/validation';
-import { ROLES } from '../../utils/constants';
-import { User, Mail, Shield, Lock } from 'lucide-react';
+import { User, Mail, Shield, Lock, Building } from 'lucide-react';
+import { ROLES, DEPARTMENTS } from '../../utils/constants';
 
 const CreateUserModal = ({ isOpen, onClose, onSuccess }) => {
   const toast = useToast();
@@ -16,6 +17,7 @@ const CreateUserModal = ({ isOpen, onClose, onSuccess }) => {
     username: '',
     email: '',
     role: 'Student',
+    department: '',
     password: '',
     sendEmail: true
   });
@@ -43,6 +45,11 @@ const CreateUserModal = ({ isOpen, onClose, onSuccess }) => {
 
     if (!isValidEmail(formData.email)) {
       newErrors.email = 'Please enter a valid email address';
+    }
+
+    // Validate department for Teachers
+    if (formData.role === ROLES.TEACHER && !formData.department) {
+      newErrors.department = 'Department is required for teachers';
     }
 
     // Only validate password if not sending email
@@ -74,6 +81,10 @@ const CreateUserModal = ({ isOpen, onClose, onSuccess }) => {
         sendEmail: formData.sendEmail
       };
 
+      if (formData.role === ROLES.TEACHER) {
+        userData.department = formData.department;
+      }
+
       if (!formData.sendEmail && formData.password) {
         userData.password = formData.password;
       }
@@ -97,6 +108,7 @@ const CreateUserModal = ({ isOpen, onClose, onSuccess }) => {
       username: '',
       email: '',
       role: 'Student',
+      department: '',
       password: '',
       sendEmail: true
     });
@@ -168,6 +180,39 @@ const CreateUserModal = ({ isOpen, onClose, onSuccess }) => {
             Select the access level for this user
           </p>
         </div>
+
+        {/* Department Selection (Teachers Only) */}
+        {formData.role === ROLES.TEACHER && (
+          <motion.div
+            initial={{ opacity: 0, height: 0 }}
+            animate={{ opacity: 1, height: 'auto' }}
+            exit={{ opacity: 0, height: 0 }}
+            className="mb-4"
+          >
+            <label className="block text-sm font-medium text-gray-700 mb-2">
+              Department <span className="text-red-500">*</span>
+            </label>
+            <div className="relative">
+              <Building className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" size={20} />
+              <select
+                name="department"
+                value={formData.department}
+                onChange={handleChange}
+                className={`w-full pl-10 pr-4 py-3 border rounded-lg focus:ring-2 focus:ring-[#193869] focus:border-transparent bg-white ${
+                  errors.department ? 'border-red-500' : 'border-gray-300'
+                }`}
+              >
+                <option value="">Select Department</option>
+                {DEPARTMENTS.map(dept => (
+                  <option key={dept} value={dept}>{dept}</option>
+                ))}
+              </select>
+            </div>
+            {errors.department && (
+              <p className="text-xs text-red-500 mt-1">{errors.department}</p>
+            )}
+          </motion.div>
+        )}
 
         {/* Send Email Checkbox */}
         <div className="bg-gradient-to-r from-green-50 to-blue-50 border border-green-200 rounded-lg p-4">
