@@ -191,4 +191,4 @@ const UserActivityLog = ({ userId }) => {
   );
 };
 
-export default UserActivityLog;
+export default UserActivityLog; 
