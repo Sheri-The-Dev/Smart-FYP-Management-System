@@ -313,4 +313,4 @@ const AuditLogs = () => {
   );
 };
 
-export default AuditLogs;
+export default AuditLogs; 
