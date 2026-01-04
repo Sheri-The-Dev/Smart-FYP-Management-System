@@ -31,4 +31,4 @@ const Loading = ({ fullScreen = false, size = 'md', text = '' }) => {
   return spinner;
 };
 
-export default Loading;
+export default Loading; 
