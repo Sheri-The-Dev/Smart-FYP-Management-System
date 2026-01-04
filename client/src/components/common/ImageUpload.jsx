@@ -163,4 +163,4 @@ const ImageUpload = ({ currentImage, onUpload, onDelete, loading }) => {
   );
 };
 
-export default ImageUpload;
+export default ImageUpload; 
