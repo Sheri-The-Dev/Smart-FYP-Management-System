@@ -147,3 +147,4 @@ Finalized changes
 >>>>>>> 9e124a802278186b6a5e46eb3ae5ef469dd00857
 Initial project setup
 Initial project setup
+Added core project structure
