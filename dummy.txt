@@ -2,3 +2,4 @@ Optimized codebase
 Optimized codebase
 Added core project things
 Added core project thingsUpdated application logic
+Fixed minor issues
