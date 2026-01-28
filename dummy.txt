@@ -9,3 +9,4 @@ Updated UI components
 Added core project thingsUpdated application logic
 Fixed minor issues
 Improved performance
+Refactored code structure
