@@ -12,3 +12,4 @@ Improved performance
 Refactored code structure
 Updated UI components
 Added core project thingsUpdated application logic
+Added core project thingsUpdated application logic
