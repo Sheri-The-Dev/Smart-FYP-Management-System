@@ -14,3 +14,4 @@ Updated UI components
 Added core project thingsUpdated application logic
 Added core project thingsUpdated application logic
 Fixed minor issues
+Improved performance
