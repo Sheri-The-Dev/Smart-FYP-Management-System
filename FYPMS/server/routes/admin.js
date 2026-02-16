@@ -44,4 +44,4 @@ router.post('/complete-password-reset', validationRules.resetPassword, validate,
 router.get('/audit-logs', getAuditLogs);
 router.get('/dashboard-stats', getDashboardStats);
 
-module.exports = router;
+module.exports = router; 
