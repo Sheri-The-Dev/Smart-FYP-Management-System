@@ -290,4 +290,4 @@ module.exports = {
   updateProfile,
   uploadProfilePicture,
   deleteProfilePicture
-};
+}; 
