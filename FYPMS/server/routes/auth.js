@@ -25,3 +25,4 @@ router.post('/change-password', authenticate, validationRules.changePassword, va
 router.get('/profile', authenticate, getProfile);
 
 module.exports = router;
+ 
