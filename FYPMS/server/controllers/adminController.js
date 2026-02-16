@@ -1140,4 +1140,4 @@ module.exports = {
   getAuditLogs,
   getDashboardStats,
   bulkCreateUsers
-};
+}; 
