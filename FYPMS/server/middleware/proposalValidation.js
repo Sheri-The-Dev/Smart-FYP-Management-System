@@ -167,7 +167,7 @@ const proposalValidation = {
           message: 'Invalid proposal ID'
         });
       }
-      next();
+      next();  
     }
   ]
 };
