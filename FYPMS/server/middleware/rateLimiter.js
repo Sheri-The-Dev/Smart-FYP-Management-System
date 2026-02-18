@@ -104,4 +104,4 @@ module.exports = {
   trackFailedLogin,
   checkAccountLock,
   clearFailedAttempts
-};
+}; 
