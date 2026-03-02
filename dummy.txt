@@ -28,3 +28,4 @@ Improved performance
 Refactored code structure
 Updated UI components
 Initial project setup
+Added core project structure
