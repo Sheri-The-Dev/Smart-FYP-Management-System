@@ -147,7 +147,7 @@ const sendProposalNotification = async (notificationData) => {
               View Proposal Details
             </a>
           </div>
-          
+           
           <p style="margin-top: 30px; font-size: 14px; color: #6b7280;">
             Please coordinate with your supervisor for the next steps in your project.
           </p>
