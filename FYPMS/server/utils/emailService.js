@@ -290,7 +290,7 @@ const sendProposalRejectedEmail = async (studentEmail, studentName, projectTitle
     console.error('Email send error:', error);
     return false;
   }
-};
+}; 
 
 // Revision requested
 const sendRevisionRequestedEmail = async (studentEmail, studentName, projectTitle, supervisorName, feedback) => {
