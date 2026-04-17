@@ -14,13 +14,44 @@ const Input = ({
   disabled = false,
   required = false,
   icon = null,
-  className = ''
+  className = '',
+  textarea = false,
+  rows = 4
 }) => {
   const [showPassword, setShowPassword] = useState(false);
   const [isFocused, setIsFocused] = useState(false);
 
   const isPassword = type === 'password';
   const inputType = isPassword && showPassword ? 'text' : type;
+
+  const inputProps = {
+    id: name,
+    name: name,
+    value: value,
+    onChange: onChange,
+    onBlur: (e) => {
+      setIsFocused(false);
+      if (onBlur) onBlur(e);
+    },
+    onFocus: () => setIsFocused(true),
+    placeholder: placeholder,
+    disabled: disabled,
+    required: required,
+    className: `
+      w-full px-4 py-3 rounded-lg border transition-all duration-200
+      ${icon ? 'pl-10' : ''}
+      ${isPassword ? 'pr-12' : ''}
+      ${error 
+        ? 'border-red-500 focus:ring-red-500 focus:border-red-500' 
+        : 'border-gray-300 focus:ring-[#193869] focus:border-[#193869]'
+      }
+      ${disabled ? 'bg-gray-100 cursor-not-allowed' : 'bg-white'}
+      focus:outline-none focus:ring-2
+    `,
+    animate: {
+      scale: isFocused ? 1.01 : 1
+    }
+  };
 
   return (
     <div className={`w-full ${className}`}>
@@ -41,37 +72,13 @@ const Input = ({
           </div>
         )}
         
-        <motion.input
-          id={name}
-          name={name}
-          type={inputType}
-          value={value}
-          onChange={onChange}
-          onBlur={(e) => {
-            setIsFocused(false);
-            if (onBlur) onBlur(e);
-          }}
-          onFocus={() => setIsFocused(true)}
-          placeholder={placeholder}
-          disabled={disabled}
-          required={required}
-          className={`
-            w-full px-4 py-3 rounded-lg border transition-all duration-200
-            ${icon ? 'pl-10' : ''}
-            ${isPassword ? 'pr-12' : ''}
-            ${error 
-              ? 'border-red-500 focus:ring-red-500 focus:border-red-500' 
-              : 'border-gray-300 focus:ring-[#193869] focus:border-[#193869]'
-            }
-            ${disabled ? 'bg-gray-100 cursor-not-allowed' : 'bg-white'}
-            focus:outline-none focus:ring-2
-          `}
-          animate={{
-            scale: isFocused ? 1.01 : 1
-          }}
-        />
+        {textarea ? (
+          <motion.textarea {...inputProps} rows={rows} />
+        ) : (
+          <motion.input {...inputProps} type={inputType} />
+        )}
         
-        {isPassword && (
+        {isPassword && !textarea && (
           <button
             type="button"
             onClick={() => setShowPassword(!showPassword)}
@@ -99,4 +106,4 @@ const Input = ({
   );
 };
 
-export default Input; 
+export default Input;
