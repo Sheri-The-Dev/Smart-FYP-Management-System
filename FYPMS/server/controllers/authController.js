@@ -26,14 +26,14 @@ const login = async (req, res) => {
       });
     }
 
-    // Find user by username or email
+    // Find user by username, email, or SAP ID
     const userSql = `
-  SELECT id, username, email, password_hash, role, is_active, last_login, profile_picture
-  FROM users 
-  WHERE (username = ? OR email = ?) AND is_active = true
-`;
-    
-    const [user] = await query(userSql, [username, username]);
+      SELECT id, username, email, sap_id, password_hash, role, is_active, last_login, profile_picture, phone, department
+      FROM users 
+      WHERE (username = ? OR email = ? OR sap_id = ?) AND is_active = true
+    `;
+
+    const [user] = await query(userSql, [username, username, username]);
 
     if (!user) {
       await trackFailedLogin(username, ipAddress);
@@ -51,7 +51,7 @@ const login = async (req, res) => {
 
     // Verify password
     const isPasswordValid = await bcrypt.compare(password, user.password_hash);
-    
+
     if (!isPasswordValid) {
       await trackFailedLogin(username, ipAddress);
       await logAudit({
@@ -76,9 +76,10 @@ const login = async (req, res) => {
       id: user.id,
       username: user.username,
       email: user.email,
-      role: user.role
+      role: user.role,
+      sap_id: user.sap_id
     };
-    
+
     const token = generateJWT(tokenPayload);
     const expiresAt = new Date(Date.now() + 24 * 60 * 60 * 1000); // 24 hours
 
@@ -87,7 +88,7 @@ const login = async (req, res) => {
       INSERT INTO sessions (user_id, token, expires_at, ip_address, user_agent)
       VALUES (?, ?, ?, ?, ?)
     `;
-    
+
     await query(sessionSql, [
       user.id,
       token,
@@ -108,20 +109,23 @@ const login = async (req, res) => {
     });
 
     res.status(200).json({
-  success: true,
-  message: 'Login successful',
-  data: {
-    token,
-    user: {
-      id: user.id,
-      username: user.username,
-      email: user.email,
-      role: user.role,
-      profile_picture: user.profile_picture // ADD THIS
-    },
-    expiresAt
-  }
-});
+      success: true,
+      message: 'Login successful.',
+      data: {
+        token,
+        user: {
+          id: user.id,
+          username: user.username,
+          email: user.email,
+          role: user.role,
+          sap_id: user.sap_id,
+          phone: user.phone,
+          department: user.department,
+          profile_picture: user.profile_picture
+        },
+        expiresAt
+      }
+    });
 
   } catch (error) {
     console.error('Login error:', error);
@@ -204,7 +208,7 @@ const requestPasswordReset = async (req, res) => {
     // Send reset email
     try {
       await sendPasswordResetEmail(user.email, user.username, token);
-      
+
       await logAudit({
         userId: user.id,
         action: AuditActions.PASSWORD_RESET_REQUESTED,
@@ -250,7 +254,7 @@ const validateResetToken = async (req, res) => {
       JOIN users u ON t.user_id = u.id
       WHERE t.token = ? AND t.used = false AND t.expires_at > NOW()
     `;
-    
+
     const [tokenData] = await query(tokenSql, [token]);
 
     if (!tokenData) {
@@ -291,7 +295,7 @@ const resetPassword = async (req, res) => {
       JOIN users u ON t.user_id = u.id
       WHERE t.token = ? AND t.used = false AND t.expires_at > NOW()
     `;
-    
+
     const [tokenData] = await query(tokenSql, [token]);
 
     if (!tokenData) {
@@ -305,7 +309,7 @@ const resetPassword = async (req, res) => {
     const passwordHash = await bcrypt.hash(newPassword, parseInt(process.env.BCRYPT_ROUNDS));
 
     // Update password
-    await query('UPDATE users SET password_hash = ?, updated_at = NOW() WHERE id = ?', 
+    await query('UPDATE users SET password_hash = ?, updated_at = NOW() WHERE id = ?',
       [passwordHash, tokenData.user_id]
     );
 
@@ -363,7 +367,7 @@ const changePassword = async (req, res) => {
 
     // Verify current password
     const isPasswordValid = await bcrypt.compare(currentPassword, user.password_hash);
-    
+
     if (!isPasswordValid) {
       return res.status(401).json({
         success: false,
@@ -375,7 +379,7 @@ const changePassword = async (req, res) => {
     const passwordHash = await bcrypt.hash(newPassword, parseInt(process.env.BCRYPT_ROUNDS));
 
     // Update password
-    await query('UPDATE users SET password_hash = ?, updated_at = NOW() WHERE id = ?', 
+    await query('UPDATE users SET password_hash = ?, updated_at = NOW() WHERE id = ?',
       [passwordHash, userId]
     );
 
@@ -411,7 +415,7 @@ const getProfile = async (req, res) => {
       FROM users 
       WHERE id = ?
     `;
-    
+
     const [user] = await query(userSql, [userId]);
 
     if (!user) {
@@ -444,4 +448,3 @@ module.exports = {
   changePassword,
   getProfile
 };
- 
