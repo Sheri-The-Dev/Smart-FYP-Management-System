@@ -10,13 +10,14 @@ const getMyProfile = async (req, res) => {
 
     const userSql = `
       SELECT 
-        id, username, email, role, phone, department, 
-        research_areas, expertise, availability_status,
-        profile_picture, created_at, last_login, updated_at
-      FROM users 
-      WHERE id = ?
+        u.id, u.username, u.email, u.sap_id, u.role, u.phone, u.department, 
+        u.research_areas, u.expertise, u.availability_status,
+        u.profile_picture, u.created_at, u.last_login, u.updated_at,
+        u.batch_id, u.fyp_phase, b.name as batch_name
+      FROM users u
+      LEFT JOIN academic_batches b ON u.batch_id = b.id
+      WHERE u.id = ?
     `;
-    
     const [user] = await query(userSql, [userId]);
 
     if (!user) {
@@ -49,7 +50,7 @@ const updateProfile = async (req, res) => {
 
     // Get current user data
     const [currentUser] = await query('SELECT username, email, role FROM users WHERE id = ?', [userId]);
-    
+
     if (!currentUser) {
       return res.status(404).json({
         success: false,
@@ -95,11 +96,7 @@ const updateProfile = async (req, res) => {
       changes.phone = phone;
     }
 
-    if (department !== undefined) {
-      updates.push('department = ?');
-      params.push(department);
-      changes.department = department;
-    }
+    // Department is an Admin-controlled field, do not allow user to update.
 
     // Teacher-specific fields
     if (currentUser.role === 'Teacher') {
@@ -148,13 +145,14 @@ const updateProfile = async (req, res) => {
     // Get updated user data
     const userSql = `
       SELECT 
-        id, username, email, role, phone, department, 
-        research_areas, expertise, availability_status,
-        profile_picture, created_at, last_login, updated_at
-      FROM users 
-      WHERE id = ?
+        u.id, u.username, u.email, u.sap_id, u.role, u.phone, u.department, 
+        u.research_areas, u.expertise, u.availability_status,
+        u.profile_picture, u.created_at, u.last_login, u.updated_at,
+        u.batch_id, u.fyp_phase, b.name as batch_name
+      FROM users u
+      LEFT JOIN academic_batches b ON u.batch_id = b.id
+      WHERE u.id = ?
     `;
-    
     const [updatedUser] = await query(userSql, [userId]);
 
     res.status(200).json({
@@ -285,9 +283,93 @@ const deleteProfilePicture = async (req, res) => {
   }
 };
 
+// Check if user exists by SAP ID or email and if they are available for a proposal
+const checkUserExists = async (req, res) => {
+  try {
+    const { sap_id, email, exclude_proposal_id } = req.query;
+    const excludeProposalId = exclude_proposal_id && /^\d+$/.test(String(exclude_proposal_id))
+      ? Number(exclude_proposal_id)
+      : null;
+
+    if (!sap_id && !email) {
+      return res.status(400).json({
+        success: false,
+        message: 'sap_id or email is required'
+      });
+    }
+
+    let sql;
+    let param;
+
+    if (sap_id) {
+      sql = 'SELECT id, email, sap_id, phone FROM users WHERE sap_id = ? AND is_active = true';
+      param = sap_id;
+    } else {
+      sql = 'SELECT id, email, sap_id, phone FROM users WHERE email = ? AND is_active = true';
+      param = email;
+    }
+
+    const [user] = await query(sql, [param]);
+
+    if (!user) {
+      return res.status(200).json({
+        success: true,
+        exists: false,
+        email: null,
+        phone: null,
+        available: false,
+        reason: 'User not found'
+      });
+    }
+
+    const statusList = "('draft', 'pending_member_confirmation', 'submitted', 'revision_requested', 'approved')";
+
+    const memberSide = `
+      SELECT p.id
+      FROM proposals p
+      JOIN proposal_members pm ON p.id = pm.proposal_id
+      WHERE (pm.sap_id = ? OR pm.email = ?)
+        AND pm.status IN ('pending', 'accepted')
+        AND p.status IN ${statusList}
+        ${excludeProposalId ? 'AND p.id != ?' : ''}
+    `;
+
+    const leaderSide = `
+      SELECT p.id
+      FROM proposals p
+      WHERE p.student_id = ?
+        AND p.status IN ${statusList}
+        ${excludeProposalId ? 'AND p.id != ?' : ''}
+    `;
+
+    const finalSql = `${memberSide} UNION ${leaderSide}`;
+    const params = excludeProposalId
+      ? [user.sap_id, user.email, excludeProposalId, user.id, excludeProposalId]
+      : [user.sap_id, user.email, user.id];
+
+    const conflicts = await query(finalSql, params);
+
+    return res.status(200).json({
+      success: true,
+      exists: true,
+      email: user.email,
+      phone: user.phone || null,
+      available: conflicts.length === 0,
+      reason: conflicts.length > 0 ? 'User is already part of another active or approved proposal' : null
+    });
+  } catch (error) {
+    console.error('Check user exists error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Failed to verify SAP ID'
+    });
+  }
+};
+
 module.exports = {
   getMyProfile,
   updateProfile,
   uploadProfilePicture,
-  deleteProfilePicture
-}; 
+  deleteProfilePicture,
+  checkUserExists
+};
