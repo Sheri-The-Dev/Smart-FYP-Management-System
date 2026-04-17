@@ -14,7 +14,8 @@ import {
   Users as UsersIcon,
   Activity,
   FolderOpen,
-  FileText 
+  FileText,
+  BookOpen
 } from 'lucide-react';
 import { useAuth } from '../../hooks/useAuth';
 import { useToast } from '../common/Toast';
@@ -55,7 +56,8 @@ const Header = () => {
           <div className="flex items-center flex-shrink-0">
             <Link to="/dashboard" className="flex items-center space-x-2 sm:space-x-3">
               <div className="w-9 h-9 sm:w-10 sm:h-10 bg-gradient-to-br from-[#193869] to-[#234e92] rounded-lg flex items-center justify-center flex-shrink-0">
-                <Shield className="w-5 h-5 sm:w-6 sm:h-6 text-white" />
+                
+                <img src="../imgs/header_FYPMS.png" className ="w-10 h-10 sm:w-6 sm:h-6" alt="FYPMS LOGO" />
               </div>
               <div className="hidden sm:block">
                 <h1 className="text-lg sm:text-xl font-bold text-gray-800 whitespace-nowrap">FYPMS</h1>
@@ -96,17 +98,55 @@ const Header = () => {
                   <FileText className="w-4 h-4" />
                   <span>Proposals</span>
                 </Link>
+                <Link
+                  to="/admin/batches"
+                  className="px-3 lg:px-4 py-2 text-sm font-medium text-gray-700 hover:text-[#193869] hover:bg-gray-100 rounded-lg transition-colors flex items-center gap-2"
+                >
+                  <BookOpen className="w-4 h-4" />
+                  <span>Batches</span>
+                </Link>
+
               </>
             )}
+            
+            {(isAdmin() || user?.role === 'Committee') && (
+              <>
+                <Link
+                  to="/admin/curriculum"
+                  className="px-3 lg:px-4 py-2 text-sm font-medium text-gray-700 hover:text-[#193869] hover:bg-gray-100 rounded-lg transition-colors flex items-center gap-2"
+                >
+                  <BookOpen className="w-4 h-4" />
+                  <span>Curriculum</span>
+                </Link>
+                <Link
+                  to="/admin/master-dashboard"
+                  className="px-3 lg:px-4 py-2 text-sm font-medium text-gray-700 hover:text-[#193869] hover:bg-gray-100 rounded-lg transition-colors flex items-center gap-2"
+                >
+                  <Activity className="w-4 h-4" />
+                  <span>Compliance</span>
+                </Link>
+              </>
+            )}
+
             {/* PROPOSAL LINKS */}
             {user?.role === 'Student' && (
-              <Link
-                to="/proposals"
-                className="px-3 lg:px-4 py-2 text-sm font-medium text-gray-700 hover:text-[#193869] hover:bg-gray-100 rounded-lg transition-colors flex items-center gap-2"
-              >
-                <FileText className="w-4 h-4" />
-                <span>My Proposals</span>
-              </Link>
+              <>
+                <Link
+                  to="/proposals"
+                  className="px-3 lg:px-4 py-2 text-sm font-medium text-gray-700 hover:text-[#193869] hover:bg-gray-100 rounded-lg transition-colors flex items-center gap-2"
+                >
+                  <FileText className="w-4 h-4" />
+                  <span>Proposals</span>
+                </Link>
+                <Link
+                  to="/student/milestones"
+                  className="px-3 lg:px-4 py-2 text-sm font-medium text-gray-700 hover:text-[#193869] hover:bg-gray-100 rounded-lg transition-colors flex items-center gap-2"
+                >
+                  <Activity className="w-4 h-4" />
+                  <span>Milestones</span>
+                </Link>
+
+              </>
             )}
 
             {user?.role === 'Teacher' && (
@@ -299,6 +339,36 @@ const Header = () => {
                       <Activity className="w-5 h-5 flex-shrink-0" />
                       <span>Audit Logs</span>
                     </Link>
+                    <Link
+                      to="/admin/batches"
+                      onClick={() => setMobileMenuOpen(false)}
+                      className="flex items-center space-x-3 px-4 py-3 text-sm font-medium text-gray-700 hover:bg-gray-100 rounded-lg transition-colors"
+                    >
+                      <BookOpen className="w-5 h-5 flex-shrink-0" />
+                      <span>Batches</span>
+                    </Link>
+                    <div className="border-t border-gray-200 my-2"></div>
+                  </>
+                )}
+
+                {(isAdmin() || user?.role === 'Committee') && (
+                  <>
+                    <Link
+                      to="/admin/curriculum"
+                      onClick={() => setMobileMenuOpen(false)}
+                      className="flex items-center space-x-3 px-4 py-3 text-sm font-medium text-gray-700 hover:bg-gray-100 rounded-lg transition-colors"
+                    >
+                      <BookOpen className="w-5 h-5 flex-shrink-0" />
+                      <span>Curriculum</span>
+                    </Link>
+                    <Link
+                      to="/admin/master-dashboard"
+                      onClick={() => setMobileMenuOpen(false)}
+                      className="flex items-center space-x-3 px-4 py-3 text-sm font-medium text-gray-700 hover:bg-gray-100 rounded-lg transition-colors"
+                    >
+                      <Activity className="w-5 h-5 flex-shrink-0" />
+                      <span>Compliance</span>
+                    </Link>
                     <div className="border-t border-gray-200 my-2"></div>
                   </>
                 )}
@@ -312,6 +382,17 @@ const Header = () => {
                   >
                     <FileText className="w-5 h-5 flex-shrink-0" />
                     <span>My Proposals</span>
+                  </Link>
+                )}
+
+                {user?.role === 'Student' && (
+                  <Link
+                    to="/student/milestones"
+                    onClick={() => setMobileMenuOpen(false)}
+                    className="flex items-center space-x-3 px-4 py-3 text-sm font-medium text-gray-700 hover:bg-gray-100 rounded-lg transition-colors"
+                  >
+                    <Activity className="w-5 h-5 flex-shrink-0" />
+                    <span>Milestones</span>
                   </Link>
                 )}
 
