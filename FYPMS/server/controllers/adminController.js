@@ -7,17 +7,12 @@ const { logAudit, getClientIp, AuditActions } = require('../utils/logger');
 // Create new user (Admin only)
 const createUser = async (req, res) => {
   try {
-    const { username, email, role, password, sendEmail, department } = req.body;
+    const { username, email, role, password, sendEmail, department, sap_id } = req.body;
     const adminId = req.user.id;
     const ipAddress = getClientIp(req);
 
-    // Validate department for Teachers
-    if (role === 'Teacher' && !department) {
-      return res.status(400).json({
-        success: false,
-        message: 'Department is required for teachers.'
-      });
-    }
+    // For other roles, department is optional but supported
+    // Validate sap_id for everyone
 
     // Check if username already exists
     const [existingUser] = await query(
@@ -32,17 +27,37 @@ const createUser = async (req, res) => {
       });
     }
 
+    if (!sap_id || !/^\d+$/.test(String(sap_id))) {
+      return res.status(400).json({
+        success: false,
+        message: 'SAP ID must be a numeric value.'
+      });
+    }
+
     // Generate temporary password if not provided
     const temporaryPassword = password || generateSecureToken(12);
-    const passwordHash = await bcrypt.hash(temporaryPassword, parseInt(process.env.BCRYPT_ROUNDS));
+    const bcryptRounds = parseInt(process.env.BCRYPT_ROUNDS) || 10;
+    const passwordHash = await bcrypt.hash(temporaryPassword, bcryptRounds);
+
+    // Default max supervisees for teachers
+    const maxSupervisees = req.body.max_supervisees || 5;
 
     // Create user
     const userSql = `
-      INSERT INTO users (username, email, password_hash, role, department, created_by)
-      VALUES (?, ?, ?, ?, ?, ?)
+      INSERT INTO users (username, email, sap_id, password_hash, role, department, created_by, max_supervisees)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?)
     `;
-    
-    const result = await query(userSql, [username, email, passwordHash, role, role === 'Teacher' ? department : null, adminId]);
+
+    const result = await query(userSql, [
+      username || null,
+      email || null,
+      sap_id || null,
+      passwordHash,
+      role || null,
+      department || null,
+      adminId || null,
+      role === 'Teacher' ? (maxSupervisees || 5) : null
+    ]);
     const newUserId = result.insertId;
 
     // Log user creation
@@ -52,14 +67,14 @@ const createUser = async (req, res) => {
       action: AuditActions.USER_CREATED,
       entityType: 'user',
       entityId: newUserId,
-      details: { username, email, role, department: role === 'Teacher' ? department : undefined },
+      details: { username, email, sap_id, role, department, max_supervisees: role === 'Teacher' ? maxSupervisees : undefined },
       ipAddress
     });
 
     // Send account creation email if requested
     if (sendEmail) {
       try {
-        await sendAccountCreationEmail(email, username, temporaryPassword, role === 'Teacher' ? department : null);
+        await sendAccountCreationEmail(email, username, sap_id, temporaryPassword, department);
       } catch (emailError) {
         console.error('Account creation email error:', emailError);
         // Don't fail the request if email fails
@@ -73,8 +88,9 @@ const createUser = async (req, res) => {
         id: newUserId,
         username,
         email,
+        sap_id,
         role,
-        department: role === 'Teacher' ? department : null,
+        department,
         temporaryPassword: sendEmail ? undefined : temporaryPassword
       }
     });
@@ -96,14 +112,14 @@ const getAllUsers = async (req, res) => {
 
     let sql = `
       SELECT 
-        u.id, u.username, u.email, u.role, u.department, u.is_active, 
+        u.id, u.username, u.email, u.sap_id, u.role, u.department, u.is_active, 
         u.created_at, u.last_login,
         creator.username as created_by_username
       FROM users u
       LEFT JOIN users creator ON u.created_by = creator.id
       WHERE 1=1
     `;
-    
+
     const params = [];
 
     // Filter by role
@@ -112,10 +128,16 @@ const getAllUsers = async (req, res) => {
       params.push(role);
     }
 
-    // Search by username or email
+    // Filter by department
+    if (req.query.department && req.query.department !== 'all') {
+      sql += ' AND u.department = ?';
+      params.push(req.query.department);
+    }
+
+    // Search by username, email, or SAP ID
     if (search) {
-      sql += ' AND (u.username LIKE ? OR u.email LIKE ?)';
-      params.push(`%${search}%`, `%${search}%`);
+      sql += ' AND (u.username LIKE ? OR u.email LIKE ? OR u.sap_id LIKE ?)';
+      params.push(`%${search}%`, `%${search}%`, `%${search}%`);
     }
 
     // Get total count
@@ -166,7 +188,7 @@ const getUserById = async (req, res) => {
       LEFT JOIN users creator ON u.created_by = creator.id
       WHERE u.id = ?
     `;
-    
+
     const [user] = await query(userSql, [id]);
 
     if (!user) {
@@ -184,7 +206,7 @@ const getUserById = async (req, res) => {
       ORDER BY created_at DESC
       LIMIT 10
     `;
-    
+
     const activities = await query(activitySql, [id]);
 
     res.status(200).json({
@@ -208,13 +230,13 @@ const getUserById = async (req, res) => {
 const updateUser = async (req, res) => {
   try {
     const { id } = req.params;
-    const { email, role, is_active, department } = req.body;
+    const { email, role, is_active, department, password } = req.body;
     const adminId = req.user.id;
     const ipAddress = getClientIp(req);
 
     // Check if user exists
     const [user] = await query('SELECT username, role FROM users WHERE id = ?', [id]);
-    
+
     if (!user) {
       return res.status(404).json({
         success: false,
@@ -264,15 +286,35 @@ const updateUser = async (req, res) => {
       params.push(is_active);
     }
 
-    // Handle department update
-    // Allow updating department if role is Teacher OR if we are changing role to Teacher
+    if (password) {
+      const passwordHash = await bcrypt.hash(password, parseInt(process.env.BCRYPT_ROUNDS));
+      updates.push('password_hash = ?');
+      params.push(passwordHash);
+    }
+
+    // Handle department and max_supervisees update
+    // Allow updating department/max_supervisees if role is Teacher OR if we are changing role to Teacher
     const effectiveRole = role || user.role;
-    if (effectiveRole === 'Teacher' && department !== undefined) {
-      updates.push('department = ?');
-      params.push(department);
-    } else if (effectiveRole !== 'Teacher' && role) {
-      // If changing from Teacher to something else, clear department
-      updates.push('department = NULL');
+    if (effectiveRole === 'Teacher') {
+      if (department !== undefined) {
+        updates.push('department = ?');
+        params.push(department);
+      }
+      if (req.body.max_supervisees !== undefined) {
+        updates.push('max_supervisees = ?');
+        params.push(req.body.max_supervisees);
+      }
+    } else {
+      if (department !== undefined) {
+        updates.push('department = ?');
+        params.push(department);
+      }
+      if (req.body.max_supervisees !== undefined && effectiveRole === 'Teacher') {
+        updates.push('max_supervisees = ?');
+        params.push(req.body.max_supervisees);
+      } else if (effectiveRole !== 'Teacher' && role) {
+        updates.push('max_supervisees = NULL');
+      }
     }
 
     if (updates.length === 0) {
@@ -295,7 +337,7 @@ const updateUser = async (req, res) => {
       action: AuditActions.USER_UPDATED,
       entityType: 'user',
       entityId: id,
-      details: { username: user.username, changes: { email, role, is_active, department } },
+      details: { username: user.username, changes: { email, role, is_active, department, passwordChanged: !!password } },
       ipAddress
     });
 
@@ -330,7 +372,7 @@ const deleteUser = async (req, res) => {
 
     // Get user info before deletion
     const [user] = await query('SELECT username, email FROM users WHERE id = ?', [id]);
-    
+
     if (!user) {
       return res.status(404).json({
         success: false,
@@ -536,7 +578,7 @@ const getSecurityQuestions = async (req, res) => {
       JOIN users u ON c.user_id = u.id
       WHERE c.token = ? AND c.status = 'pending' AND c.expires_at > NOW()
     `;
-    
+
     const [challenge] = await query(challengeSql, [token]);
 
     if (!challenge) {
@@ -553,7 +595,7 @@ const getSecurityQuestions = async (req, res) => {
       WHERE user_id = ?
       ORDER BY id
     `;
-    
+
     const questions = await query(questionsSql, [challenge.user_id]);
 
     res.status(200).json({
@@ -586,7 +628,7 @@ const verifySecurityAnswers = async (req, res) => {
       JOIN users u ON c.user_id = u.id
       WHERE c.token = ? AND c.status = 'pending' AND c.expires_at > NOW()
     `;
-    
+
     const [challenge] = await query(challengeSql, [token]);
 
     if (!challenge) {
@@ -602,14 +644,14 @@ const verifySecurityAnswers = async (req, res) => {
       FROM security_questions
       WHERE user_id = ?
     `;
-    
+
     const storedQuestions = await query(questionsSql, [challenge.user_id]);
 
     // Verify all answers
     let allCorrect = true;
     for (const answer of answers) {
       const storedQuestion = storedQuestions.find(q => q.id === answer.questionId);
-      
+
       if (!storedQuestion) {
         allCorrect = false;
         break;
@@ -693,7 +735,7 @@ const completePasswordReset = async (req, res) => {
       JOIN users u ON c.user_id = u.id
       WHERE c.token = ? AND c.status = 'verified'
     `;
-    
+
     const [challenge] = await query(challengeSql, [token]);
 
     if (!challenge) {
@@ -747,20 +789,21 @@ const completePasswordReset = async (req, res) => {
 // Get audit logs (Admin only)
 const getAuditLogs = async (req, res) => {
   try {
-    const { userId, action, startDate, endDate, page = 1, limit = 50 } = req.query;
+    const { userId, action, startDate, endDate, page = 1, limit = 50, search } = req.query;
     const offset = (page - 1) * limit;
 
     let sql = `
       SELECT 
         a.*,
         u.username as user_username,
+        u.sap_id as user_sap_id,
         admin.username as admin_username
       FROM audit_logs a
       LEFT JOIN users u ON a.user_id = u.id
       LEFT JOIN users admin ON a.admin_id = admin.id
       WHERE 1=1
     `;
-    
+
     const params = [];
 
     if (userId) {
@@ -781,6 +824,11 @@ const getAuditLogs = async (req, res) => {
     if (endDate) {
       sql += ' AND a.created_at <= ?';
       params.push(endDate);
+    }
+
+    if (search) {
+      sql += ' AND (u.username LIKE ? OR u.email LIKE ? OR u.sap_id LIKE ?)';
+      params.push(`%${search}%`, `%${search}%`, `%${search}%`);
     }
 
     // Get total count
@@ -859,6 +907,18 @@ const getDashboardStats = async (req, res) => {
       WHERE created_at > DATE_SUB(NOW(), INTERVAL 30 DAY)
     `);
 
+    // ── Batch stats (Module 6 integration) ──────────────────────────
+    const [activeBatches] = await query(`
+      SELECT COUNT(*) as count FROM academic_batches WHERE state = 'Active'
+    `);
+    const [enrolledStudents] = await query(`
+      SELECT COUNT(*) as count FROM users WHERE role = 'Student' AND batch_id IS NOT NULL
+    `);
+    const [pendingProposals] = await query(`
+      SELECT COUNT(*) as count FROM proposals WHERE status IN ('submitted', 'pending_member_confirmation')
+    `).catch(() => [{ count: 0 }]);
+    // ────────────────────────────────────────────────────────────────
+
     res.status(200).json({
       success: true,
       data: {
@@ -868,6 +928,11 @@ const getDashboardStats = async (req, res) => {
           failedLogins: failedLogins?.count || 0,
           passwordResets: passwordResets?.count || 0,
           newUsers: newUsers?.count || 0
+        },
+        batchStats: {
+          activeBatches: activeBatches?.count || 0,
+          enrolledStudents: enrolledStudents?.count || 0,
+          pendingProposals: pendingProposals?.count || 0
         }
       }
     });
@@ -880,6 +945,7 @@ const getDashboardStats = async (req, res) => {
     });
   }
 };
+
 
 
 // Bulk create users from CSV (Admin only)
@@ -912,7 +978,7 @@ const bulkCreateUsers = async (req, res) => {
 
     // Email validation regex
     const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-    
+
     // Parse and validate emails (and departments for teachers)
     const usersToCreate = []; // Array of { email, department }
     const errors = [];
@@ -921,34 +987,14 @@ const bulkCreateUsers = async (req, res) => {
     lines.forEach((line, index) => {
       // For Teacher role, we expect: email,department
       // For others: email
-      
+
       let email = '';
       let department = null;
 
-      if (role === 'Teacher') {
-        const parts = line.trim().split(',');
-        if (parts.length < 2) {
-          // Maybe they didn't provide department?
-          // We should probably require it as per requirements "add one more field... for teacher role only"
-          // But maybe we can allow empty? Let's require it if possible, or default to null.
-          // User said "add the department field there", implies it should be present.
-          email = parts[0].trim().replace(/^"|"$/g, '');
-          // If missing department, we might flag error or allow null. Let's flag warning or error.
-          // "add the department field there for teacher role only" -> implies usage.
-          // Let's require it for better data integrity.
-          // But wait, previous logic disallowed commas.
-        } else {
-          email = parts[0].trim().replace(/^"|"$/g, '');
-          department = parts[1].trim().replace(/^"|"$/g, '');
-        }
-      } else {
-        const trimmedLine = line.trim().replace(/^"|"$/g, ''); // Remove quotes
-        // Check for commas (should only have emails for non-teachers)
-        if (trimmedLine.includes(',')) {
-          errors.push(`Line ${index + 1}: File should contain only email addresses (no commas allowed for ${role})`);
-          return;
-        }
-        email = trimmedLine;
+      const parts = line.trim().split(',');
+      email = parts[0].trim().replace(/^"|"$/g, '');
+      if (parts.length > 1) {
+        department = parts[1].trim().replace(/^"|"$/g, '');
       }
 
       // Validate email format
@@ -957,13 +1003,10 @@ const bulkCreateUsers = async (req, res) => {
         return;
       }
 
-      if (role === 'Teacher' && !department) {
-         errors.push(`Line ${index + 1}: Department is required for Teachers (format: email,department)`);
-         return;
-      }
+      // No absolute requirement for department now due to flexible usage
 
       const emailLower = email.toLowerCase();
-      
+
       // Check for duplicates within file
       if (duplicatesInFile.has(emailLower)) {
         errors.push(`Line ${index + 1}: Duplicate email - "${email}"`);
@@ -995,7 +1038,7 @@ const bulkCreateUsers = async (req, res) => {
 
     // Filter out existing emails
     const newUsers = usersToCreate.filter(u => !existingEmails.includes(u.email));
-    
+
     if (newUsers.length === 0) {
       return res.status(400).json({
         success: false,
@@ -1020,24 +1063,24 @@ const bulkCreateUsers = async (req, res) => {
 
     for (const user of newUsers) {
       try {
-        // Extract username from email (text before @)
-        const username = user.email.split('@')[0];
-        
+        // Extract username and SAP ID from email (text before @)
+        const baseId = user.email.split('@')[0];
+
         // Check if username already exists, if so append random number
-        let finalUsername = username;
+        let finalUsername = baseId;
         let usernameExists = true;
         let attempts = 0;
-        
+
         while (usernameExists && attempts < 5) {
           const [existingUser] = await query(
             'SELECT id FROM users WHERE username = ?',
             [finalUsername]
           );
-          
+
           if (!existingUser) {
             usernameExists = false;
           } else {
-            finalUsername = `${username}${Math.floor(Math.random() * 9999)}`;
+            finalUsername = `${baseId}${Math.floor(Math.random() * 9999)}`;
             attempts++;
           }
         }
@@ -1050,15 +1093,23 @@ const bulkCreateUsers = async (req, res) => {
 
         // Generate secure password
         const temporaryPassword = generateSecureToken(12);
-        const passwordHash = await bcrypt.hash(temporaryPassword, parseInt(process.env.BCRYPT_ROUNDS));
+        const passwordHash = await bcrypt.hash(temporaryPassword, parseInt(process.env.BCRYPT_ROUNDS) || 10);
 
         // Insert user
         const userSql = `
-          INSERT INTO users (username, email, password_hash, role, department, created_by)
-          VALUES (?, ?, ?, ?, ?, ?)
+          INSERT INTO users (username, email, sap_id, password_hash, role, department, created_by)
+          VALUES (?, ?, ?, ?, ?, ?, ?)
         `;
-        
-        const result = await query(userSql, [finalUsername, user.email, passwordHash, role, user.department, adminId]);
+
+        const result = await query(userSql, [
+          finalUsername || null,
+          user.email || null,
+          baseId || null,
+          passwordHash,
+          role || null,
+          user.department || null,
+          adminId || null
+        ]);
         const newUserId = result.insertId;
 
         // Log user creation
@@ -1068,13 +1119,13 @@ const bulkCreateUsers = async (req, res) => {
           action: AuditActions.USER_CREATED,
           entityType: 'user',
           entityId: newUserId,
-          details: { username: finalUsername, email: user.email, role, department: user.department, method: 'bulk_create' },
+          details: { username: finalUsername, email: user.email, sap_id: baseId, role, department: user.department, method: 'bulk_create' },
           ipAddress
         });
 
         // Send account creation email
         try {
-          await sendAccountCreationEmail(user.email, finalUsername, temporaryPassword, role === 'Teacher' ? user.department : null);
+          await sendAccountCreationEmail(user.email, finalUsername, baseId, temporaryPassword, role === 'Teacher' ? user.department : null);
           results.created++;
         } catch (emailError) {
           console.error('Email error for', user.email, ':', emailError);
@@ -1096,11 +1147,11 @@ const bulkCreateUsers = async (req, res) => {
       adminId,
       action: 'BULK_USER_CREATION',
       entityType: 'user',
-      details: { 
-        total: results.total, 
-        created: results.created, 
+      details: {
+        total: results.total,
+        created: results.created,
         failed: results.failed,
-        role 
+        role
       },
       ipAddress
     });
@@ -1113,15 +1164,242 @@ const bulkCreateUsers = async (req, res) => {
 
   } catch (error) {
     console.error('Bulk create users error:', error);
-    
+
     // Clean up uploaded file if it exists
     if (req.file && require('fs').existsSync(req.file.path)) {
       require('fs').unlinkSync(req.file.path);
     }
-    
+
     res.status(500).json({
       success: false,
       message: 'An error occurred during bulk user creation.'
+    });
+  }
+};
+
+// Export workload report (Admin only)
+const exportWorkloadReport = async (req, res) => {
+  try {
+    const { format = 'json' } = req.query;
+
+    const sql = `
+      SELECT 
+        u.id, u.username, u.email, u.department, 
+        u.max_supervisees, u.current_supervisees, 
+        u.availability_status, u.is_accepting_proposals,
+        (u.max_supervisees - u.current_supervisees) as remaining_capacity,
+        CASE 
+          WHEN u.current_supervisees >= u.max_supervisees THEN 'Overloaded'
+          WHEN u.current_supervisees >= (u.max_supervisees * 0.8) THEN 'Near Capacity'
+          ELSE 'Available'
+        END as workload_status
+      FROM users u
+      WHERE u.role = 'Teacher' AND u.is_active = 1
+      ORDER BY u.department, u.username
+    `;
+
+    const supervisors = await query(sql);
+
+    if (format === 'csv') {
+      const fields = [
+        'username', 'email', 'department',
+        'max_supervisees', 'current_supervisees',
+        'remaining_capacity', 'workload_status', 'availability_status'
+      ];
+
+      let csv = fields.join(',') + '\n';
+
+      supervisors.forEach(s => {
+        csv += fields.map(field => {
+          const val = s[field] || '';
+          return `"${val}"`;
+        }).join(',') + '\n';
+      });
+
+      res.header('Content-Type', 'text/csv');
+      res.attachment('supervisor_workload_report.csv');
+      return res.send(csv);
+    }
+
+    res.status(200).json({
+      success: true,
+      data: supervisors
+    });
+
+  } catch (error) {
+    console.error('Export workload report error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Failed to generate workload report'
+    });
+  }
+};
+
+// Get capacity alerts (Admin only)
+const getCapacityAlerts = async (req, res) => {
+  try {
+    const { threshold = 0.8 } = req.query; // Default threshold 80%
+
+    const sql = `
+      SELECT 
+        id, username, email, department,
+        max_supervisees, current_supervisees,
+        (max_supervisees - current_supervisees) as remaining_capacity,
+        CASE 
+          WHEN current_supervisees >= max_supervisees THEN 'Exceeded'
+          WHEN current_supervisees >= (max_supervisees * ?) THEN 'Threshold Reached'
+          ELSE 'Normal'
+        END as alert_type
+      FROM users
+      WHERE role = 'Teacher' 
+      AND is_active = 1
+      AND current_supervisees >= (max_supervisees * ?)
+      ORDER BY current_supervisees DESC
+    `;
+
+    const alerts = await query(sql, [threshold, threshold]);
+
+    res.status(200).json({
+      success: true,
+      data: alerts
+    });
+
+  } catch (error) {
+    console.error('Get capacity alerts error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Failed to retrieve capacity alerts'
+    });
+  }
+};
+
+// Reset supervisor workload (Admin only)
+const resetWorkload = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const adminId = req.user.id;
+    const ipAddress = getClientIp(req);
+
+    await query('UPDATE users SET current_supervisees = 0 WHERE id = ?', [id]);
+
+    // Log action
+    await logAudit({
+      userId: id,
+      adminId,
+      action: 'WORKLOAD_RESET',
+      entityType: 'user',
+      entityId: id,
+      details: { message: 'Workload reset to 0' },
+      ipAddress
+    });
+
+    res.json({ success: true, message: 'Workload reset successfully' });
+  } catch (error) {
+    console.error('Reset workload error:', error);
+    res.status(500).json({ success: false, message: 'Error resetting workload' });
+  }
+};
+
+// Decrement supervisor workload (Admin only)
+const decrementWorkload = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const adminId = req.user.id;
+    const ipAddress = getClientIp(req);
+
+    await query('UPDATE users SET current_supervisees = GREATEST(0, current_supervisees - 1) WHERE id = ?', [id]);
+
+    // Log action
+    await logAudit({
+      userId: id,
+      adminId,
+      action: 'WORKLOAD_DECREMENT',
+      entityType: 'user',
+      entityId: id,
+      details: { message: 'Workload decremented by 1' },
+      ipAddress
+    });
+
+    res.json({ success: true, message: 'Workload decremented successfully' });
+  } catch (error) {
+    console.error('Decrement workload error:', error);
+    res.status(500).json({ success: false, message: 'Error decrementing workload' });
+  }
+};
+
+// Export all users (Admin only)
+const exportUsers = async (req, res) => {
+  try {
+    const { role, department, search, fields: requestedFields, userIds } = req.body;
+
+    const validFields = ['username', 'email', 'sap_id', 'role', 'department', 'status', 'date_joined'];
+
+    // Determine which columns to export
+    let fields = validFields;
+    if (Array.isArray(requestedFields) && requestedFields.length > 0) {
+      fields = requestedFields.filter(f => validFields.includes(f));
+      if (fields.length === 0) fields = validFields;
+    }
+
+    // Build query
+    let sql = `
+      SELECT 
+        username, email, sap_id, role, department, 
+        CASE WHEN is_active = 1 THEN 'Active' ELSE 'Inactive' END as status,
+        DATE_FORMAT(created_at, '%Y-%m-%d %H:%i:%s') as date_joined
+      FROM users
+      WHERE 1=1
+    `;
+    const params = [];
+
+    // Filter by selected user IDs (if admin selected specific rows)
+    if (Array.isArray(userIds) && userIds.length > 0) {
+      sql += ` AND id IN (${userIds.map(() => '?').join(',')})`;
+      params.push(...userIds);
+    } else {
+      // Otherwise apply table filters
+      if (role && role !== 'all') {
+        sql += ' AND role = ?';
+        params.push(role);
+      }
+      if (department && department !== 'all') {
+        sql += ' AND department = ?';
+        params.push(department);
+      }
+      if (search && search.trim()) {
+        sql += ' AND (username LIKE ? OR email LIKE ? OR sap_id LIKE ?)';
+        const s = `%${search.trim()}%`;
+        params.push(s, s, s);
+      }
+    }
+
+    sql += ' ORDER BY role, username';
+
+    const users = await query(sql, params);
+
+    if (users.length === 0) {
+      // Return an empty CSV with headers so it's not blank
+      const csv = fields.join(',') + '\n';
+      res.setHeader('Content-Type', 'text/csv');
+      res.setHeader('Content-Disposition', 'attachment; filename="users_export.csv"');
+      return res.end(csv);
+    }
+
+    // Generate CSV
+    let csv = fields.map(f => `"${f.replace('_', ' ')}"`).join(',') + '\n';
+    users.forEach(u => {
+      csv += fields.map(field => `"${u[field] !== null && u[field] !== undefined ? String(u[field]).replace(/"/g, '""') : ''}"`).join(',') + '\n';
+    });
+
+    res.setHeader('Content-Type', 'text/csv');
+    res.setHeader('Content-Disposition', 'attachment; filename="users_export.csv"');
+    return res.end(csv);
+
+  } catch (error) {
+    console.error('Export users error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'An error occurred exporting users.'
     });
   }
 };
@@ -1139,5 +1417,10 @@ module.exports = {
   completePasswordReset,
   getAuditLogs,
   getDashboardStats,
-  bulkCreateUsers
-}; 
+  bulkCreateUsers,
+  exportWorkloadReport,
+  getCapacityAlerts,
+  resetWorkload,
+  decrementWorkload,
+  exportUsers
+};
