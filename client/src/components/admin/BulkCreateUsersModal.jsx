@@ -2,11 +2,12 @@ import { useState } from 'react';
 import { Upload, FileText, AlertCircle, CheckCircle, Users } from 'lucide-react';
 import Modal from '../common/Modal';
 import Button from '../common/Button';
-import { ROLES } from '../../utils/constants';
+import { ROLES, DEPARTMENTS } from '../../utils/constants';
 
 const BulkCreateUsersModal = ({ isOpen, onClose, onSuccess }) => {
   const [selectedFile, setSelectedFile] = useState(null);
   const [selectedRole, setSelectedRole] = useState('Student');
+  const [defaultDepartment, setDefaultDepartment] = useState('');
   const [dragActive, setDragActive] = useState(false);
   const [uploading, setUploading] = useState(false);
   const [validationError, setValidationError] = useState('');
@@ -61,31 +62,46 @@ const BulkCreateUsersModal = ({ isOpen, onClose, onSuccess }) => {
         }
 
         // Parse CSV lines
-        const emails = [];
+        const previewItems = [];
         const errors = [];
+        const processedEmails = [];
 
         lines.forEach((line, index) => {
           const trimmedLine = line.trim().replace(/^"|"$/g, ''); // Remove quotes if present
+          let email = '';
+          let department = '';
+
+          const parts = trimmedLine.split(',');
+          email = parts[0].trim();
           
-          // Check if line contains only email (no commas for multiple columns)
-          if (trimmedLine.includes(',')) {
-            errors.push(`Line ${index + 1}: File should contain only email addresses (one per line)`);
+          if (parts.length >= 2) {
+            department = parts[1].trim();
+          } else {
+            department = defaultDepartment;
+          }
+
+          if (parts.length > 2) {
+            errors.push(`Line ${index + 1}: Invalid format. Expected: email OR email,department`);
             return;
           }
 
           // Validate email format
-          if (!emailRegex.test(trimmedLine)) {
-            errors.push(`Line ${index + 1}: Invalid email format - "${trimmedLine}"`);
+          if (!emailRegex.test(email)) {
+            errors.push(`Line ${index + 1}: Invalid email format - "${email}"`);
             return;
           }
 
           // Check for duplicate emails in file
-          if (emails.includes(trimmedLine.toLowerCase())) {
-            errors.push(`Line ${index + 1}: Duplicate email - "${trimmedLine}"`);
+          if (processedEmails.includes(email.toLowerCase())) {
+            errors.push(`Line ${index + 1}: Duplicate email - "${email}"`);
             return;
           }
 
-          emails.push(trimmedLine.toLowerCase());
+          processedEmails.push(email.toLowerCase());
+          
+          const sap_id = email.split('@')[0];
+          const username = sap_id;
+          previewItems.push({ email, username, sap_id, department });
         });
 
         // If there are validation errors, show them
@@ -107,13 +123,7 @@ const BulkCreateUsersModal = ({ isOpen, onClose, onSuccess }) => {
           return;
         }
 
-        // Generate preview with username extraction
-        const preview = emails.map(email => {
-          const username = email.split('@')[0];
-          return { email, username };
-        });
-
-        setPreviewData(preview);
+        setPreviewData(previewItems);
         setShowPreview(true);
         setValidationError('');
       } catch (error) {
@@ -193,6 +203,7 @@ const BulkCreateUsersModal = ({ isOpen, onClose, onSuccess }) => {
   const handleClose = () => {
     setSelectedFile(null);
     setSelectedRole('Student');
+    setDefaultDepartment('');
     setValidationError('');
     setPreviewData([]);
     setShowPreview(false);
@@ -225,6 +236,33 @@ const BulkCreateUsersModal = ({ isOpen, onClose, onSuccess }) => {
           </select>
           <p className="text-xs text-gray-500 mt-1">
             All users in the CSV will be assigned this role
+          </p>
+        </div>
+        
+        {/* Default Department */}
+        <div>
+          <label className="block text-sm font-medium text-gray-700 mb-2">
+            Default Department (Optional)
+          </label>
+          <select
+            value={defaultDepartment}
+            onChange={(e) => {
+              setDefaultDepartment(e.target.value);
+              // Re-validate if file is already selected
+              if (selectedFile) {
+                setTimeout(() => validateAndPreviewCSV(selectedFile), 0);
+              }
+            }}
+            className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#193869] focus:border-transparent"
+            disabled={uploading}
+          >
+            <option value="">No Default Department</option>
+            {DEPARTMENTS.map(dept => (
+              <option key={dept} value={dept}>{dept}</option>
+            ))}
+          </select>
+          <p className="text-xs text-gray-500 mt-1">
+            This will be applied if the CSV row only contains an email
           </p>
         </div>
 
@@ -287,7 +325,7 @@ const BulkCreateUsersModal = ({ isOpen, onClose, onSuccess }) => {
                     Drop CSV file here or click to browse
                   </p>
                   <p className="text-xs text-gray-500 mt-1">
-                    CSV file with email addresses only (one per line)
+                    CSV file with email or email and department (email,department)
                   </p>
                 </div>
               </div>
@@ -301,9 +339,11 @@ const BulkCreateUsersModal = ({ isOpen, onClose, onSuccess }) => {
               <div className="text-sm text-blue-800">
                 <p className="font-medium mb-1">CSV File Requirements:</p>
                 <ul className="list-disc pl-5 space-y-1">
-                  <li>File must contain only email addresses</li>
-                  <li>One email per line</li>
-                  <li>Username will be extracted from text before "@"</li>
+                  <li>Format: <strong>email</strong> OR <strong>email,department</strong> (no header row)</li>
+                  <li>One user per line</li>
+                  <li>Example 1: <strong>student@example.com</strong></li>
+                  <li>Example 2: <strong>teacher@example.com,Computer Science</strong></li>
+                  <li>Username and SAPID will be extracted from text before "@"</li>
                   <li>Each user will receive a unique auto-generated password via email</li>
                   <li>Maximum file size: 5MB</li>
                 </ul>
@@ -340,7 +380,9 @@ const BulkCreateUsersModal = ({ isOpen, onClose, onSuccess }) => {
                 <thead className="bg-gray-50 sticky top-0">
                   <tr>
                     <th className="px-4 py-2 text-left text-xs font-semibold text-gray-600">Username</th>
+                    <th className="px-4 py-2 text-left text-xs font-semibold text-gray-600">SAP ID</th>
                     <th className="px-4 py-2 text-left text-xs font-semibold text-gray-600">Email</th>
+                    <th className="px-4 py-2 text-left text-xs font-semibold text-gray-600">Department</th>
                     <th className="px-4 py-2 text-left text-xs font-semibold text-gray-600">Role</th>
                   </tr>
                 </thead>
@@ -348,7 +390,9 @@ const BulkCreateUsersModal = ({ isOpen, onClose, onSuccess }) => {
                   {previewData.slice(0, 10).map((user, index) => (
                     <tr key={index} className="hover:bg-gray-50">
                       <td className="px-4 py-2 text-sm text-gray-700">{user.username}</td>
+                      <td className="px-4 py-2 text-sm text-gray-700">{user.sap_id}</td>
                       <td className="px-4 py-2 text-sm text-gray-600">{user.email}</td>
+                      <td className="px-4 py-2 text-sm text-gray-600">{user.department || '-'}</td>
                       <td className="px-4 py-2 text-sm">
                         <span className="px-2 py-1 rounded-full text-xs font-medium bg-blue-100 text-blue-800">
                           {selectedRole}
@@ -358,7 +402,7 @@ const BulkCreateUsersModal = ({ isOpen, onClose, onSuccess }) => {
                   ))}
                   {previewData.length > 10 && (
                     <tr>
-                      <td colSpan="3" className="px-4 py-2 text-sm text-gray-500 text-center italic">
+                      <td colSpan={selectedRole === 'Teacher' ? "4" : "3"} className="px-4 py-2 text-sm text-gray-500 text-center italic">
                         ... and {previewData.length - 10} more users
                       </td>
                     </tr>
