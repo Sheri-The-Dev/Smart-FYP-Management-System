@@ -45,3 +45,4 @@ Initial project setup
 Initial project setup
 Initial project setup
 Added core project structure
+Implemented base functionality
